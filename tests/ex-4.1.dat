@@ -1,0 +1,7 @@
+I x = x;
+K x y = x;
+K1 x y = y;
+S f g x = f x (g x);
+id = S K K;
+id1 = id id;
+main = id1 4;

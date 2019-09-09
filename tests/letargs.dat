@@ -1,0 +1,9 @@
+xf x = x*7;
+show5 a b c d e =
+  let m = a;
+      n = b;
+      o = c;
+      p = d*11;
+      q = xf e
+      in (((m*100+n)*100+o)*100+p)*100+q;
+main = show5 1 2 3 4 5;

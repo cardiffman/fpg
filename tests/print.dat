@@ -1,0 +1,37 @@
+#nil       n c = n;
+#cons x xs n c = c x xs;
+
+chain f g x = f (g x);
+
+fold f z xs =  xs z (fold_case_cons f z);
+  fold_case_cons f z x xs' = f x (fold f z xs');
+foldl f z xs = xs z (chain (foldl f) (f z));
+
+map f xs = fold (chain cons f) nil xs;
+
+plus a b = a + b;
+
+  #shownum_le_pair b q r = cons (shownum_le_1 r) (q 0 (const (shownum_le b q)));
+  #shownum_le b n        = divmod n b (shownum_le_pair b);
+  #shownum_le_1 d        = plus ('0') d;
+  #shownum_ base = chain reverse (shownum_le base);
+  #shownum = shownum_ 10;
+  #showoct = shownum_ 8;
+
+
+digits n xs =
+	let
+		num = n / 10;
+		mod = n % 10;
+		 
+	in
+		if (num < 10)
+			(cons (num+48) xs)
+			(cons (mod+48) (digits num xs));
+
+printstr xs =
+	map putChar xs;
+
+#main = printstr (digits 12345 nil);
+#main = printstr (cons '5' (cons '4' (cons '3' (cons '2' (cons '1' nil)))));
+main = printstr (cons '5' nil);

@@ -1,0 +1,2 @@
+factorial n = let uu0 = n - 1; in let uu1 = factorial uu0; in let uu2= n * uu1; in if (n < 2) 1 uu2;
+main = factorial 20

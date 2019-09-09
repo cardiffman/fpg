@@ -1,0 +1,5 @@
+factorial n = if (n < 2) 1 (n * (factorial (n - 1)));
+main = let
+		arg = 5
+       in
+         factorial arg
