@@ -1024,7 +1024,7 @@ void mkAp() {
 }
 void push(int n) {
 	auto p = gmStack.end();
-	p = prev(p,-n);
+	p = prev(p,n);
 	Node* node = *p;
 	auto ap = dynamic_cast<NAp*>(node);
 	assert(ap);
