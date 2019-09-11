@@ -117,25 +117,13 @@ struct ExprVisitor {
 };
 
 struct Expr {
-#ifdef EXPR_TAGS
-	Expr() :type() {}
-	Expr(ExprType t) : type(t) {}
-#else
 	Expr() {}
-#endif
 	virtual ~Expr() {}
 	virtual string to_string(int) const = 0;
 	virtual void visit(ExprVisitor*) = 0;
-#ifdef EXPR_TAGS
-	ExprType type;
-#endif
 };
 struct ExprVar : public Expr {
-#ifdef EXPR_TAGS
-	ExprVar(const string& v) : Expr(EXPR_VAR), var(v) {}
-#else
 	ExprVar(const string& v) : var(v) {}
-#endif
 	string to_string(int) const { return "VAR " + var; }
 	void visit(ExprVisitor* v) { v->visitExprVar(this); }
 	string var;
@@ -147,11 +135,7 @@ struct ExprBool : public Expr {
 	bool value;
 };
 struct ExprApp : public Expr {
-#ifdef EXPR_TAGS
-	ExprApp(Expr* fun, Expr* arg) : Expr(EXPR_APP), fun(fun) { args.push_back(arg); }
-#else
 	ExprApp(Expr* fun, Expr* arg) : fun(fun) { args.push_back(arg); }
-#endif
 	Expr* fun;
 	list<Expr*> args;
 	string to_string(int) const;
@@ -169,31 +153,19 @@ string ExprApp::to_string(int col) const {
 	return rv;
 }
 struct ExprStr : public Expr {
-#ifdef EXPR_TAGS
-	ExprStr(const std::string str): Expr(EXPR_STR), str(str) {}
-#else
 	ExprStr(const std::string str): str(str) {}
-#endif
 	string str;
 	string to_string(int) const { return "STR \"" + str + '"'; }
 	void visit(ExprVisitor* v) { v->visitExprStr(this); }
 };
 struct ExprNum : public Expr {
-#ifdef EXPR_TAGS
-	ExprNum(ptrdiff_t value) : Expr(EXPR_NUM), value(value) {}
-#else
 	ExprNum(ptrdiff_t value) : value(value) {}
-#endif
 	ptrdiff_t value;
 	string to_string(int) const { return "NUM " + ::to_string((int)value); }
 	void visit(ExprVisitor* v) { v->visitExprNum(this); }
 };
 struct ExprOper : public Expr {
-#ifdef EXPR_TAGS
-	ExprOper(int op) : Expr(EXPR_OPER), op(op) {}
-#else
 	ExprOper(int op) : op(op) {}
-#endif
 	int op;
 	string to_string(int col) const;
 	void visit(ExprVisitor* v) { v->visitExprOper(this); }
