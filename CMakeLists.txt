@@ -5,6 +5,8 @@ add_compile_options(-Wall -Wextra)
 
 add_executable(fpstg fpstg.cpp)
 
+add_executable(g0 g0.cpp)
+
 enable_testing()
 add_test(NAME add2 COMMAND fpstg ../tests/add2.dat)
 set_tests_properties(add2 PROPERTIES PASS_REGULAR_EXPRESSION "Halt\r\nF:S: SELF\\|3")
