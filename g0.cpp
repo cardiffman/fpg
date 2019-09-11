@@ -1122,6 +1122,11 @@ Instruction PushGlobalInstruction(NGlobal* node) {
 	ins.node = node;
 	return ins;
 }
+Instruction MkapInstruction() {
+	Instruction ins;
+	ins.ins = MKAP;
+	return ins;
+}
 void compileC(CodeArray& code, Expr* expr, Env& env) {
 	auto eint = dynamic_cast<ExprNum*>(expr);
 	if (eint) {
@@ -1142,10 +1147,15 @@ void compileC(CodeArray& code, Expr* expr, Env& env) {
 	}
 	auto eapp = dynamic_cast<ExprApp*>(expr);
 	if (eapp) {
-		for (auto pArg = eapp->args.rbegin(); pArg != eapp->args.rend(); ++pArg) {
-			compileC(code,*pArg,env);
+		auto pArg = eapp->args.rbegin();
+		compileC(code,*pArg++,env);
+		while (pArg != eapp->args.rend()) {
+			compileC(code,*pArg++,env);
+			//if (pArg != eapp->args.rend())
+				code.add(MkapInstruction());
 		}
 		compileC(code,eapp->fun,env);
+		code.add(MkapInstruction());
 		return;
 	}
 }
