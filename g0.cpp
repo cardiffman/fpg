@@ -1018,11 +1018,31 @@ void pushInt(int i) {
 	gmStack.push_back(new NInt(i));
 }
 void mkAp() {
+	cout << "Stack before mkap" << endl;
+	for (auto s : gmStack) {
+		cout << s << ' ' << s->to_string() << ' ';
+	}
+	cout << endl;
 	Node* a1 = gmStack.back(); gmStack.pop_back();
 	Node* a2 = gmStack.back(); gmStack.pop_back();
 	gmStack.push_back(new NAp(a1, a2));
+	cout << "Stack after mkap" << endl;
+	for (auto s : gmStack) {
+		cout << s << ' ' << s->to_string() << ' ';
+	}
+	cout << endl;
 }
 void push(int n) {
+	cout << "Stack before push " << endl;
+	for (auto s : gmStack) {
+		cout << s << ' ' << s->to_string() << ' ';
+	}
+	cout << endl;
+	for (unsigned i=0; i<1 && i<gmStack.size(); ++i) {
+		auto p = gmStack.end();
+		prev(p,i+1);
+		cout << i << ": " << *p << ' ' << (*p)->to_string() << endl;
+	}
 	auto p = gmStack.end();
 	p = prev(p,n);
 	Node* node = *p;
@@ -1030,6 +1050,12 @@ void push(int n) {
 	assert(ap);
 	auto arg = ap->a2;
 	gmStack.push_back(arg);
+	cout << "Stack after push " << endl;
+	for (unsigned i=0; i<=n+1 && i<gmStack.size(); ++i) {
+		auto p = gmStack.begin();
+		advance(p,i);
+		cout << i << ": " << (*p)->to_string() << endl;
+	}
 }
 void slide(int n) {
 	auto a0 = gmStack.back();
@@ -1037,29 +1063,51 @@ void slide(int n) {
 	for (int i=1; i<=n; ++i)
 		gmStack.pop_back();
 	gmStack.push_back(a0);
+	cout << "Stack after slide " << n << endl;
+	for (auto s : gmStack) {
+		cout << s << ' ' << s->to_string() << ' ';
+	}
+	cout << endl;
 }
+// Unwind will cause a jump if the top node is an NGlobal.
 void unwind(ptrdiff_t& pc) {
+	cout << "Stack before unwind " << endl;
+	for (auto s : gmStack) {
+		cout << s << ' ' << s->to_string() << ' ';
+	}
+	cout << endl;
 	while (true) {
 		Node* top = gmStack.back();
 		auto itop = dynamic_cast<NInt*>(top);
 		if (itop)
-			return;
+			break;
 		auto aptop = dynamic_cast<NAp*>(top);
 		if (aptop) {
+			cout << "aptop " << aptop->to_string() << endl;
+			cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
 			gmStack.push_back(aptop->a1);
-			pc--;
-			return;
+			cout << "Stack during ap unwind " << endl;
+			for (auto s : gmStack) {
+				cout << s << ' ' << s->to_string() << ' ';
+			}
+			cout << endl;
+			//pc--; // instead of backing up, we reiterate directly.
+			continue;
 		}
 		auto gtop = dynamic_cast<NGlobal*>(top);
 		if (gtop) {
 			if (gmStack.size() < gtop->args) {
-				cout << __PRETTY_FUNCTION__ << ": not enough arguments" << endl;
-				return;
+				cout << __PRETTY_FUNCTION__ << ": stack " << gmStack.size() << " not enough for " << gtop->args << " arguments" << endl;
 			}
 			pc = gtop->address;
-			return;
+			break;
 		}
 	}
+	cout << "Stack after unwind " << endl;
+	for (auto s : gmStack) {
+		cout << s << ' ' << s->to_string() << ' ';
+	}
+	cout << endl;
 }
 bool step(CodeArray& code, ptrdiff_t& pc) {
 	Instruction instr = code.code[pc++];
