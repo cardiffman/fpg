@@ -1018,8 +1018,11 @@ void push(int n) {
 	gmStack.push_back(arg);
 }
 void slide(int n) {
-	for (int i=0; i<n; ++i)
+	auto a0 = gmStack.back();
+	gmStack.pop_back();
+	for (int i=1; i<=n; ++i)
 		gmStack.pop_back();
+	gmStack.push_back(a0);
 }
 void unwind(ptrdiff_t& pc) {
 	while (true) {
