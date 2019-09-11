@@ -909,7 +909,7 @@ void pprint_defs(int col, const list<Definition>& defs)
 <O,UPDATE m:C,nO,nl: . . . :n,:S ,V,G [n~Ng,n,=N,lP> * <O,C,nl: . . . :n,:S ,V,G [no=No,n,=No]P>
 */
 
-typedef enum InstructionType {
+enum InstructionType {
 	ADD,
 	ALLOC,
 	CHR,
@@ -958,7 +958,7 @@ typedef enum InstructionType {
 	TL,
 	UPDATE,
 	zzzmaxInstr
-} InstructionType;
+};
 const char* insNames[] = {
 		"ADD",
 		"ALLOC",
