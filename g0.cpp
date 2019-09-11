@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <stddef.h> // official home of ptrdiff_t
 #include <assert.h>
+#include <sstream>
+
 using namespace std;
 
 template <typename T, typename UnaryOp, typename T2=std::string, typename C2=std::list<T2>>
@@ -926,18 +928,30 @@ const char* insToString(InstructionType ins) {
 }
 struct Node {
 	virtual ~Node() {}
+	virtual string to_string() const = 0;
 };
 struct NGlobal : public Node {
 	NGlobal(ptrdiff_t address, unsigned args) : address(address), args(args) {}
+	string to_string() const {
+		return "NG " + ::to_string(address);
+	}
 	ptrdiff_t address;
 	unsigned args;
 };
 struct NInt : public Node {
 	NInt(int i) : i(i) {}
+	string to_string() const {
+		return "NInt " + ::to_string(i);
+	}
 	int i;
 };
 struct NAp : public Node {
 	NAp(Node* a1, Node* a2) : a1(a1), a2(a2) {}
+	string to_string() const {
+		std::ostringstream os;
+		os << "NAp " << a1 << " " << a2;
+		return os.str();
+	}
 	Node* a1;
 	Node* a2;
 };
