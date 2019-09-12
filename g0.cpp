@@ -1068,8 +1068,10 @@ void unwind(ptrdiff_t& pc) {
 	while (true) {
 		Node* top = gmStack.front();
 		auto itop = dynamic_cast<NInt*>(top);
-		if (itop)
+		if (itop) {
+			pc = 0; // a stop instruction is there.
 			break;
+		}
 		auto aptop = dynamic_cast<NAp*>(top);
 		if (aptop) {
 			cout << "aptop " << aptop->to_string() << endl;
@@ -1261,6 +1263,9 @@ int main(int argc, char** argv)
     pprint_defs(0, defs);
     Env env;
     CodeArray code;
+    Instruction instr; instr.ins = STOP;
+    code.add(instr);
+
     for (auto def : defs) {
     	EnvItem item;
 		item.args = def.args.size();
@@ -1281,8 +1286,6 @@ int main(int argc, char** argv)
     ptrdiff_t pc = code.code.size();
     code.add(PushGlobalInstruction(mode.node));
     code.add(UnwindInstruction());
-    Instruction instr; instr.ins = STOP;
-    code.add(instr);
     for (unsigned i=0; i<code.code.size(); ++i) {
     	string id;
     	for (auto e : env) {
