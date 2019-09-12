@@ -951,7 +951,7 @@ struct NAp : public Node {
 	NAp(Node* a1, Node* a2) : a1(a1), a2(a2) {}
 	string to_string() const {
 		std::ostringstream os;
-		os << "NAp " << a1 << " " << a2;
+		os << "NAp (" << a1->to_string() << " " << a2->to_string() << ")";
 		return os.str();
 	}
 	Node* a1;
@@ -1022,7 +1022,7 @@ void pushInt(int i) {
 void showStack(const string& label) {
 	cout << label << endl;
 	for (auto s : gmStack) {
-		cout << s << ' ' << s->to_string() << ' ';
+		cout << /*s << ' ' <<*/ '[' << s->to_string() << "] ";
 	}
 	cout << endl;
 }
@@ -1048,7 +1048,7 @@ void push(unsigned n) {
 	auto arg = ap->a2;
 	gmStack.push_front(arg);
 	cout << "Stack after push " << endl;
-	for (unsigned i=0; i<=n+1 && i<gmStack.size(); ++i) {
+	for (unsigned i=0; (i<=n+1) && i<gmStack.size(); ++i) {
 		auto p = gmStack.begin();
 		advance(p,i);
 		cout << i << ": " << (*p)->to_string() << endl;
