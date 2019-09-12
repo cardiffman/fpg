@@ -1008,48 +1008,43 @@ struct GmStats {
 };
 #if 0
 void pushGlobal(ptrdiff_t dest, unsigned args) {
-	gmStack.push_back(new NGlobal(dest, args));
+	gmStack.push_front(new NGlobal(dest, args));
 }
 #endif
 void pushGlobal(NGlobal* sc) {
-	gmStack.push_back(sc);
+	gmStack.push_front(sc);
 }
 void pushInt(int i) {
-	gmStack.push_back(new NInt(i));
+	gmStack.push_front(new NInt(i));
 }
-void mkAp() {
-	cout << "Stack before mkap" << endl;
-	for (auto s : gmStack) {
-		cout << s << ' ' << s->to_string() << ' ';
-	}
-	cout << endl;
-	Node* a1 = gmStack.back(); gmStack.pop_back();
-	Node* a2 = gmStack.back(); gmStack.pop_back();
-	gmStack.push_back(new NAp(a1, a2));
-	cout << "Stack after mkap" << endl;
+void showStack(const string& label) {
+	cout << label << endl;
 	for (auto s : gmStack) {
 		cout << s << ' ' << s->to_string() << ' ';
 	}
 	cout << endl;
 }
-void push(int n) {
-	cout << "Stack before push " << endl;
-	for (auto s : gmStack) {
-		cout << s << ' ' << s->to_string() << ' ';
-	}
-	cout << endl;
+void mkAp() {
+	showStack("Stack before mkap");
+	Node* a1 = gmStack.front(); gmStack.pop_front();
+	Node* a2 = gmStack.front(); gmStack.pop_front();
+	gmStack.push_front(new NAp(a1, a2));
+	showStack("Stack after mkap");
+}
+void push(unsigned n) {
+	showStack("Stack before push");
 	for (unsigned i=0; i<1 && i<gmStack.size(); ++i) {
-		auto p = gmStack.end();
-		prev(p,i+1);
+		auto p = gmStack.begin();
+		advance(p,i);
 		cout << i << ": " << *p << ' ' << (*p)->to_string() << endl;
 	}
-	auto p = gmStack.end();
-	p = prev(p,n);
+	auto p = gmStack.begin();
+	advance(p,n);
 	Node* node = *p;
 	auto ap = dynamic_cast<NAp*>(node);
 	assert(ap);
 	auto arg = ap->a2;
-	gmStack.push_back(arg);
+	gmStack.push_front(arg);
 	cout << "Stack after push " << endl;
 	for (unsigned i=0; i<=n+1 && i<gmStack.size(); ++i) {
 		auto p = gmStack.begin();
@@ -1058,26 +1053,18 @@ void push(int n) {
 	}
 }
 void slide(int n) {
-	auto a0 = gmStack.back();
-	gmStack.pop_back();
+	auto a0 = gmStack.front();
+	gmStack.pop_front();
 	for (int i=1; i<=n; ++i)
-		gmStack.pop_back();
-	gmStack.push_back(a0);
-	cout << "Stack after slide " << n << endl;
-	for (auto s : gmStack) {
-		cout << s << ' ' << s->to_string() << ' ';
-	}
-	cout << endl;
+		gmStack.pop_front();
+	gmStack.push_front(a0);
+	showStack("Stack after slide");
 }
 // Unwind will cause a jump if the top node is an NGlobal.
 void unwind(ptrdiff_t& pc) {
-	cout << "Stack before unwind " << endl;
-	for (auto s : gmStack) {
-		cout << s << ' ' << s->to_string() << ' ';
-	}
-	cout << endl;
+	showStack("Stack before unwind");
 	while (true) {
-		Node* top = gmStack.back();
+		Node* top = gmStack.front();
 		auto itop = dynamic_cast<NInt*>(top);
 		if (itop)
 			break;
@@ -1085,12 +1072,8 @@ void unwind(ptrdiff_t& pc) {
 		if (aptop) {
 			cout << "aptop " << aptop->to_string() << endl;
 			cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
-			gmStack.push_back(aptop->a1);
-			cout << "Stack during ap unwind " << endl;
-			for (auto s : gmStack) {
-				cout << s << ' ' << s->to_string() << ' ';
-			}
-			cout << endl;
+			gmStack.push_front(aptop->a1);
+			showStack("Stack during ap unwind");
 			//pc--; // instead of backing up, we reiterate directly.
 			continue;
 		}
@@ -1103,11 +1086,7 @@ void unwind(ptrdiff_t& pc) {
 			break;
 		}
 	}
-	cout << "Stack after unwind " << endl;
-	for (auto s : gmStack) {
-		cout << s << ' ' << s->to_string() << ' ';
-	}
-	cout << endl;
+	showStack("Stack after unwind");
 }
 bool step(CodeArray& code, ptrdiff_t& pc) {
 	Instruction instr = code.code[pc++];
