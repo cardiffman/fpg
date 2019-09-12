@@ -524,11 +524,13 @@ Expr* mkop(Token t, Expr* subj) {
 	return r;
 }
 Expr* mkapp(Expr* fun_, Expr* arg) {
+#ifdef BIG_LIST_AP
 	ExprApp* fun = dynamic_cast<ExprApp*>(fun_);
 	if (fun) {
 		fun->args.push_back(arg);
 		return fun;
 	}
+#endif
 	ExprApp* r = new ExprApp(fun_, arg);
 	return r;
 }
