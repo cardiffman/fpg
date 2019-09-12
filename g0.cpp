@@ -1106,16 +1106,15 @@ bool step(CodeArray& code, ptrdiff_t& pc) {
 	}
 	return instr.ins != STOP;
 }
+#if 0
+// Assignment operator does this
 static
 Env envDup(const Env& env) {
-	Env dup ;
-	for (auto envItem: env) {
-		EnvItem d = envItem.second;
-		dup[envItem.first] = d;
-	}
+	Env dup = env;
     //printf("envDup "); pprint_env(dup);
 	return dup;
 }
+#endif
 static
 void envAddArgs(Env& env, const list<string> args) {
 	int kArg = 0;
@@ -1210,7 +1209,7 @@ void compileR(CodeArray& code, Expr* expr, size_t args, Env& env) {
 	code.add(UnwindInstruction());
 }
 void compileSc(CodeArray& code, const Definition& def, Env& env) {
-	Env env2 = envDup(env);
+	Env env2 = env;
 	envAddArgs(env2, def.args);
 	compileR(code, def.body, def.args.size(), env2);
 }
