@@ -1231,22 +1231,41 @@ void compileSc(CodeArray& code, const Definition& def, Env& env) {
 	envAddArgs(env2, def.args);
 	compileR(code, def.body, def.args.size(), env2);
 }
-int main(int argc, char** argv)
+/*
+ Manage the rerouting of a file's input to the std::cin object
+ so that the parser can just use cin.
+ */
+struct InputFixer
 {
-    // Initialize input
-	ifstream input;
-    if (argc>1)
-    {
-    	streambuf* orig_cin;
-    	if (strcmp(argv[1], "test")==0) {
-    	    CodeArray code;
-    	    return 0;
-    	}
-    	input.open(argv[1],ios::in);// = fopen(argv[1],"rt");
+	InputFixer() {
+		orig_cin = nullptr;
+	}
+	~InputFixer() {
+		if (orig_cin)
+			cin.rdbuf(orig_cin);
+	}
+	int open(const char* name, ios_base::openmode mode) {
+		input.open(name,mode);// = fopen(argv[1],"rt");
 		if (!input)
 			return -1;
 		orig_cin = cin.rdbuf(input.rdbuf());
 		cin.tie(0);
+		return 0;
+	}
+	ifstream input;
+	streambuf* orig_cin;
+};
+int main(int argc, char** argv)
+{
+	InputFixer inputFixer;
+    if (argc>1)
+    {
+    	if (strcmp(argv[1], "test")==0) {
+    	    CodeArray code;
+    	    return 0;
+    	}
+		if (inputFixer.open(argv[1], ios::in))
+			return -1;
     }
 
     nextChar();
