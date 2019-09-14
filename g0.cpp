@@ -20,6 +20,8 @@
 
 using namespace std;
 
+//#define MARK1
+
 template <typename T, typename UnaryOp, typename T2=std::string, typename C2=std::list<T2>>
 C2 mapf(const T b, const T e, UnaryOp f)
 {
@@ -825,6 +827,8 @@ enum InstructionType {
 	NOT,
 	NULLinst,
 	ORD,
+#endif
+#ifndef MARK1
 	POP,
 #endif
 	PUSH,
@@ -841,7 +845,9 @@ enum InstructionType {
 	SCALL,
 	SEVAL,
 #endif
+#ifdef MARK1
 	SLIDE,
+#endif
 #if 0
 	SMKAP,
 	SPRINT,
@@ -854,7 +860,7 @@ enum InstructionType {
 	TL,
 #endif
 	UNWIND, // not in SG
-#if 0
+#ifndef MARK1
 	UPDATE,
 #endif
 	zzzmaxInstr
@@ -890,6 +896,8 @@ const char* insNames[] = {
 		"NOT",
 		"NULLinst",
 		"ORD",
+#endif
+#ifndef MARK1
 		"POP",
 #endif
 		"PUSH",
@@ -906,7 +914,9 @@ const char* insNames[] = {
 		"SCALL",
 		"SEVAL",
 #endif
+#ifdef MARK1
 		"SLIDE",
+#endif
 #if 0
 		"SMKAP",
 		"SPRINT",
@@ -919,7 +929,7 @@ const char* insNames[] = {
 		"TL",
 #endif
 		"UNWIND", // not in stg
-#if 0
+#ifndef MARK1
 		"UPDATE"
 #endif
 };
@@ -928,15 +938,32 @@ const char* insToString(InstructionType ins) {
 		return insNames[ins];
 	return "inxxx";
 }
+struct NGlobal;
+struct NInt;
+struct NAp;
+#ifndef MARK1
+struct NInd;
+#endif
+struct NodeVisitor {
+	virtual ~NodeVisitor() {}
+	virtual void visitNGlobal(NGlobal* n) = 0;
+	virtual void visitNInt(NInt* n) = 0;
+	virtual void visitNAp(NAp* n) = 0;
+#ifndef MARK1
+	virtual void visitNInd(NInd* n) = 0;
+#endif
+};
 struct Node {
 	virtual ~Node() {}
 	virtual string to_string() const = 0;
+	virtual void visit(NodeVisitor* v) = 0;
 };
 struct NGlobal : public Node {
 	NGlobal(ptrdiff_t address, unsigned args) : address(address), args(args) {}
 	string to_string() const {
 		return "NG " + ::to_string(address);
 	}
+	void visit(NodeVisitor* v) { v->visitNGlobal(this); }
 	ptrdiff_t address;
 	unsigned args;
 };
@@ -945,6 +972,7 @@ struct NInt : public Node {
 	string to_string() const {
 		return "NInt " + ::to_string(i);
 	}
+	void visit(NodeVisitor* v) { v->visitNInt(this); }
 	int i;
 };
 struct NAp : public Node {
@@ -954,9 +982,20 @@ struct NAp : public Node {
 		os << "NAp (" << a1->to_string() << " " << a2->to_string() << ")";
 		return os.str();
 	}
+	void visit(NodeVisitor* v) { v->visitNAp(this); }
 	Node* a1;
 	Node* a2;
 };
+#ifndef MARK1
+struct NInd : public Node {
+	NInd(Node* a) : a(a) {}
+	string to_string() const {
+		return "&"+a->to_string();
+	}
+	void visit(NodeVisitor* v) { v->visitNInd(this); }
+	Node* a;
+};
+#endif
 struct Instruction {
 	InstructionType ins;
 	union {
@@ -980,14 +1019,30 @@ struct AddressMode {
 	AddressMode(NGlobal* node) : mode(Global), node(node) {}
 	AddressMode() : mode(Local) {}
 };
-InstructionType needed[] = { MKAP, PUSH, PUSHGLOBAL, PUSHINT, SLIDE, STOP,UNWIND,  };
+InstructionType needed[] = { MKAP, PUSH, PUSHGLOBAL, PUSHINT,
+#ifndef MARK1
+		POP, UPDATE,
+#endif
+#ifdef MARK1
+		SLIDE,
+#endif
+		STOP,UNWIND,  };
 string instructionToString(Instruction* ins) {
 	string rv = insToString(ins->ins);
 	switch (ins->ins) {
 	case PUSHGLOBAL: rv += " " + ::to_string(ins->node->address); break;
 	case PUSHINT: rv += " " + ::to_string(ins->i); break;
 	case PUSH:
-	case SLIDE: rv += " " + ::to_string(ins->n); break;
+#ifndef MARK1
+	case UPDATE:
+#endif
+#ifdef MARK1
+	case SLIDE:
+#endif
+#ifndef MARK1
+	case POP:
+#endif
+		rv += " " + ::to_string(ins->n); break;
 	case UNWIND:
 	case STOP:
 		break;
@@ -1008,11 +1063,6 @@ GmStack gmStack;
 struct GmStats {
 
 };
-#if 0
-void pushGlobal(ptrdiff_t dest, unsigned args) {
-	gmStack.push_front(new NGlobal(dest, args));
-}
-#endif
 void showStack(const string& label) {
 	cout << label << endl;
 	for (auto s : gmStack) {
@@ -1020,24 +1070,24 @@ void showStack(const string& label) {
 	}
 	cout << endl;
 }
-void pushGlobal(NGlobal* sc) {
+void stepPushGlobal(NGlobal* sc) {
 	showStack("Stack before pushGlobal");
 	gmStack.push_front(sc);
 	showStack("Stack after pushGlobal");
 }
-void pushInt(int i) {
+void stepPushInt(int i) {
 	showStack("Stack before pushInt");
 	gmStack.push_front(new NInt(i));
 	showStack("Stack after pushInt");
 }
-void mkAp() {
+void stepMkAp() {
 	showStack("Stack before mkap");
 	Node* a1 = gmStack.front(); gmStack.pop_front();
 	Node* a2 = gmStack.front(); gmStack.pop_front();
 	gmStack.push_front(new NAp(a1, a2));
 	showStack("Stack after mkap");
 }
-void push(unsigned n) {
+void stepPush(unsigned n) {
 	showStack("Stack before push");
 	unsigned i=0;
 	for (const auto& se : gmStack) {
@@ -1058,7 +1108,8 @@ void push(unsigned n) {
 		++i;
 	}
 }
-void slide(int n) {
+#ifdef MARK1
+void stepSlide(int n) {
 	showStack("stack before slide "+::to_string(n));
 	auto a0 = gmStack.front();
 	gmStack.pop_front();
@@ -1067,8 +1118,25 @@ void slide(int n) {
 	gmStack.push_front(a0);
 	showStack("Stack after slide");
 }
+#else
+void stepPop(unsigned n) {
+	showStack("stack before pop "+::to_string(n));
+	for (unsigned i=1; i<=n; ++i)
+		gmStack.pop_front();
+	showStack("Stack after pop");
+}
+void stepUpdate(unsigned n) {
+	showStack("stack before update "+::to_string(n));
+	Node* tos = gmStack.front(); gmStack.pop_front();
+	auto p = gmStack.begin();
+	advance(p, n);
+	assert(distance(gmStack.begin(),p) < gmStack.size());
+	*p = new NInd(tos);
+	showStack("Stack after update");
+}
+#endif
 // Unwind will cause a jump if the top node is an NGlobal.
-void unwind(ptrdiff_t& pc) {
+void stepUnwind(ptrdiff_t& pc) {
 	showStack("Stack before unwind");
 	while (true) {
 		Node* top = gmStack.front();
@@ -1076,6 +1144,12 @@ void unwind(ptrdiff_t& pc) {
 		if (itop) {
 			pc = 0; // a stop instruction is there.
 			break;
+		}
+		auto iitop = dynamic_cast<NInd*>(top);
+		if (iitop) {
+			Node* replacement = iitop->a;
+			gmStack.front() = replacement;
+			continue;
 		}
 		auto aptop = dynamic_cast<NAp*>(top);
 		if (aptop) {
@@ -1100,12 +1174,17 @@ void unwind(ptrdiff_t& pc) {
 bool step(CodeArray& code, ptrdiff_t& pc) {
 	Instruction instr = code.code[pc++];
 	switch (instr.ins) {
-	case PUSHGLOBAL: pushGlobal(instr.node); break;
-	case PUSHINT: pushInt(instr.i); break;
-	case MKAP: mkAp(); break;
-	case PUSH: push(instr.n); break;
-	case SLIDE: slide(instr.n); break;
-	case UNWIND: unwind(pc); break;
+	case PUSHGLOBAL: stepPushGlobal(instr.node); break;
+	case PUSHINT: stepPushInt(instr.i); break;
+	case MKAP: stepMkAp(); break;
+	case PUSH: stepPush(instr.n); break;
+#ifdef MARK1
+	case SLIDE: stepSlide(instr.n); break;
+#else
+	case POP: stepPop(instr.n); break;
+	case UPDATE: stepUpdate(instr.n); break;
+#endif
+	case UNWIND: stepUnwind(pc); break;
 	case STOP: break;
 	case zzzmaxInstr: break; // dummy value
 	}
@@ -1142,12 +1221,27 @@ bool find_mode(const Env& env, const string& var, AddressMode* mode) {
 	return false;
 }
 
+#ifdef MARK1
 Instruction SlideInstruction(unsigned n) {
 	Instruction ins;
 	ins.ins = SLIDE;
 	ins.n = n;
 	return ins;
 }
+#else
+Instruction PopInstruction(unsigned n) {
+	Instruction ins;
+	ins.ins = POP;
+	ins.n = n;
+	return ins;
+}
+Instruction UpdateInstruction(unsigned n) {
+	Instruction ins;
+	ins.ins = UPDATE;
+	ins.n = n;
+	return ins;
+}
+#endif
 Instruction UnwindInstruction() {
 	Instruction ins;
 	ins.ins = UNWIND;
@@ -1210,7 +1304,12 @@ void compileC(CodeArray& code, Expr* expr, Env& env) {
 }
 void compileR(CodeArray& code, Expr* expr, size_t args, Env& env) {
 	compileC(code,expr,env);
+#ifdef MARK1
 	code.add(SlideInstruction(args+1));
+#else
+	code.add(UpdateInstruction(args));
+	code.add(PopInstruction(args));
+#endif
 	code.add(UnwindInstruction());
 }
 void compileSc(CodeArray& code, const Definition& def, Env& env) {
@@ -1279,6 +1378,10 @@ int main(int argc, char** argv)
     }
     AddressMode mode;
     auto m = find_mode(env, "main", &mode);
+    if (!m) {
+		cout << "main not found" << endl;
+		return 1;
+    }
     ptrdiff_t pc = code.code.size();
     code.add(PushGlobalInstruction(mode.node));
     code.add(UnwindInstruction());
