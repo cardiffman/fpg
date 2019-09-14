@@ -1013,18 +1013,22 @@ void pushGlobal(ptrdiff_t dest, unsigned args) {
 	gmStack.push_front(new NGlobal(dest, args));
 }
 #endif
-void pushGlobal(NGlobal* sc) {
-	gmStack.push_front(sc);
-}
-void pushInt(int i) {
-	gmStack.push_front(new NInt(i));
-}
 void showStack(const string& label) {
 	cout << label << endl;
 	for (auto s : gmStack) {
 		cout << /*s << ' ' <<*/ '[' << s->to_string() << "] ";
 	}
 	cout << endl;
+}
+void pushGlobal(NGlobal* sc) {
+	showStack("Stack before pushGlobal");
+	gmStack.push_front(sc);
+	showStack("Stack after pushGlobal");
+}
+void pushInt(int i) {
+	showStack("Stack before pushInt");
+	gmStack.push_front(new NInt(i));
+	showStack("Stack after pushInt");
 }
 void mkAp() {
 	showStack("Stack before mkap");
@@ -1035,26 +1039,27 @@ void mkAp() {
 }
 void push(unsigned n) {
 	showStack("Stack before push");
-	for (unsigned i=0; i<1 && i<gmStack.size(); ++i) {
-		auto p = gmStack.begin();
-		advance(p,i);
-		cout << i << ": " << *p << ' ' << (*p)->to_string() << endl;
+	unsigned i=0;
+	for (const auto& se : gmStack) {
+		cout << i << ": " << se << ' ' << se->to_string() << endl;
+		++i;
 	}
 	auto p = gmStack.begin();
-	advance(p,n);
+	advance(p,n+1);
 	Node* node = *p;
 	auto ap = dynamic_cast<NAp*>(node);
 	assert(ap);
 	auto arg = ap->a2;
 	gmStack.push_front(arg);
 	cout << "Stack after push " << endl;
-	for (unsigned i=0; (i<=n+1) && i<gmStack.size(); ++i) {
-		auto p = gmStack.begin();
-		advance(p,i);
-		cout << i << ": " << (*p)->to_string() << endl;
+	i=0;
+	for (const auto& se : gmStack) {
+		cout << i << ": " << se << ' ' << se->to_string() << endl;
+		++i;
 	}
 }
 void slide(int n) {
+	showStack("stack before slide "+::to_string(n));
 	auto a0 = gmStack.front();
 	gmStack.pop_front();
 	for (int i=1; i<=n; ++i)
@@ -1269,14 +1274,6 @@ int main(int argc, char** argv)
     	EnvItem item;
 		item.args = def.args.size();
 		item.mode = AddressMode(new NGlobal(code.code.size(), item.args));
-		// If there are no arguments, the entry point should be
-		// the first instruction we will emit.
-		// If there are arguments, the entry point should be
-		// the check instruction, which is after n-1 push-labels.
-		//if (item.args == 0)
-		//	item.mode.address = code.code.size();
-		//else
-		//	item.mode.params.address = code.code.size() + (item.args-1);
 		env[def.name] = item;
 		compileSc(code, def, env);
     }
