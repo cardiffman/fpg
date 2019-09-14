@@ -20,7 +20,9 @@
 
 using namespace std;
 
-//#define MARK1
+//#define MARK1 1
+//#define MARK2 1
+#define MARK3 1
 
 template <typename T, typename UnaryOp, typename T2=std::string, typename C2=std::list<T2>>
 C2 mapf(const T b, const T e, UnaryOp f)
@@ -63,11 +65,14 @@ string join(const list<string>& strs, int joint) {
 	return r;
 }
 
+#undef BIG_LIST_AP
 extern string indent(int col);
 struct ExprVar;
 struct ExprNum;
-struct ExprBool;
 struct ExprApp;
+struct ExprLet;
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
+struct ExprBool;
 struct ExprStr;
 struct ExprNil;
 struct ExprIf;
@@ -77,7 +82,6 @@ struct ExprHd;
 struct ExprTl;
 struct ExprNull;
 struct ExprOper;
-struct ExprLet;
 struct ExprAdd;
 struct ExprSub;
 struct ExprMul;
@@ -90,13 +94,16 @@ struct ExprGt;
 struct ExprLe;
 struct ExprGe;
 struct ExprNeg;
+#endif
 struct ExprVisitor {
 	virtual ~ExprVisitor() {}
 	virtual void visitExprVar(ExprVar* e) = 0;
 	virtual void visitExprNum(ExprNum* e) = 0;
+	virtual void visitExprApp(ExprApp* e) = 0;
+	virtual void visitExprLet(ExprLet* e) = 0;
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
 	virtual void visitExprBool(ExprBool* e) = 0;
 	virtual void visitExprChar(ExprChar* e) = 0;
-	virtual void visitExprApp(ExprApp* e) = 0;
 	virtual void visitExprStr(ExprStr* e) = 0;
 	virtual void visitExprNil(ExprNil* e) = 0;
 	virtual void visitExprIf(ExprIf* e) = 0;
@@ -105,7 +112,6 @@ struct ExprVisitor {
 	virtual void visitExprTl(ExprTl* e) = 0;
 	virtual void visitExprNull(ExprNull* e) = 0;
 	virtual void visitExprOper(ExprOper* e) = 0;
-	virtual void visitExprLet(ExprLet* e) = 0;
 	virtual void visitExprAdd(ExprAdd* e) = 0;
 	virtual void visitExprSub(ExprSub* e) = 0;
 	virtual void visitExprMul(ExprMul* e) = 0;
@@ -118,6 +124,7 @@ struct ExprVisitor {
 	virtual void visitExprLe(ExprLe* e) = 0;
 	virtual void visitExprGe(ExprGe* e) = 0;
 	virtual void visitExprNeg(ExprNeg* e) = 0;
+#endif
 };
 
 struct Expr {
@@ -132,41 +139,54 @@ struct ExprVar : public Expr {
 	void visit(ExprVisitor* v) { v->visitExprVar(this); }
 	string var;
 };
-struct ExprBool : public Expr {
-	ExprBool(bool v) : value(v) {}
-	string to_string(int) const { return value?"true":"false"; }
-	void visit(ExprVisitor* v) { v->visitExprBool(this); }
-	bool value;
-};
 struct ExprApp : public Expr {
+#ifdef BIG_LIST_AP
 	ExprApp(Expr* fun, Expr* arg) : fun(fun) { args.push_back(arg); }
+#else
+	ExprApp(Expr* fun, Expr* arg) : fun(fun),arg(arg) { }
+#endif
 	Expr* fun;
+#ifdef BIG_LIST_AP
 	list<Expr*> args;
+#else
+	Expr* arg;
+#endif
 	string to_string(int) const;
 	void visit(ExprVisitor* v) { v->visitExprApp(this); }
 };
 string ExprApp::to_string(int col) const {
 	string rv = "APP " + fun->to_string(col);
 	rv += " ARGS ";
+#ifdef BIG_LIST_APP
 	auto argstrs = mapf(args.begin(), args.end(), [col](const Expr* ex) { return ex->to_string(col); });
 	if (argstrs.size()) {
 		rv += '\n';
 		rv += string(col,' ');
 	}
 	rv += join(argstrs, ' ');
+#else
+	rv += arg->to_string(col);
+#endif
 	return rv;
 }
-struct ExprStr : public Expr {
-	ExprStr(const std::string str): str(str) {}
-	string str;
-	string to_string(int) const { return "STR \"" + str + '"'; }
-	void visit(ExprVisitor* v) { v->visitExprStr(this); }
-};
 struct ExprNum : public Expr {
 	ExprNum(ptrdiff_t value) : value(value) {}
 	ptrdiff_t value;
 	string to_string(int) const { return "NUM " + ::to_string((int)value); }
 	void visit(ExprVisitor* v) { v->visitExprNum(this); }
+};
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
+struct ExprBool : public Expr {
+	ExprBool(bool v) : value(v) {}
+	string to_string(int) const { return value?"true":"false"; }
+	void visit(ExprVisitor* v) { v->visitExprBool(this); }
+	bool value;
+};
+struct ExprStr : public Expr {
+	ExprStr(const std::string str): str(str) {}
+	string str;
+	string to_string(int) const { return "STR \"" + str + '"'; }
+	void visit(ExprVisitor* v) { v->visitExprStr(this); }
 };
 struct ExprOper : public Expr {
 	ExprOper(int op) : op(op) {}
@@ -292,6 +312,7 @@ struct ExprChar : public Expr {
 	void visit(ExprVisitor* v) { v->visitExprChar(this); }
 	int ch;
 };
+#endif
 struct ExprLet : public Expr {
 	struct Binding {
 		string name;
@@ -491,17 +512,20 @@ Expr *parse_expr();
 void pprint_expr(int col, const Expr *e);
 Expr* mkleaf(tkn t) {
 	switch (t.type) {
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
 	case T_STR: return new ExprStr(t.s);
 	case T_CHAR: return new ExprChar(t.value);
-	case T_NAME: return new ExprVar(t.s);
-	case T_NUM: return new ExprNum(t.value);
 	case T_NIL: return new ExprNil();
 	case T_TRUE: return new ExprBool(true);
 	case T_FALSE: return new ExprBool(false);
+#endif
+	case T_NAME: return new ExprVar(t.s);
+	case T_NUM: return new ExprNum(t.value);
 	default: return NULL;
 	}
 	return NULL;
 }
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
 Expr* mkop(Token t, Expr* left, Expr* right) {
 	switch (t) {
 	case T_ADD: return new ExprAdd(left,right);
@@ -516,6 +540,8 @@ Expr* mkop(Token t, Expr* left, Expr* right) {
 	ExprOper* r = new ExprOper(t);
 	return r;
 }
+#endif
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
 Expr* mkop(Token t, Expr* subj) {
 	switch (t) {
 	case T_SUB: return new ExprNeg(subj);
@@ -525,6 +551,7 @@ Expr* mkop(Token t, Expr* subj) {
 	ExprOper* r = new ExprOper(t);
 	return r;
 }
+#endif
 Expr* mkapp(Expr* fun_, Expr* arg) {
 #ifdef BIG_LIST_AP
 	ExprApp* fun = dynamic_cast<ExprApp*>(fun_);
@@ -634,10 +661,12 @@ Expr* E(int p) {
 	Expr* t = P();
 	while (atom(token) || token.type == T_LPAREN) {
 		Expr* arg = P();
-		cout << __PRETTY_FUNCTION__ << " argument: " << arg->to_string(0) << endl;
+		//cout << __PRETTY_FUNCTION__ << " argument: " << arg->to_string(0) << endl;
 		t = mkapp(t, arg);
-		cout << __PRETTY_FUNCTION__ << " application: " << t->to_string(0) << endl;
+		//cout << __PRETTY_FUNCTION__ << " application: " << t->to_string(0) << endl;
 	}
+
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
 
 	int r = 8;
 	//printf("E(%d): %s binop %d postfix %d precedence() %d, p <=precedence() %d precedence() <= r %d r=%d\n", p, token_to_string(&token), binop(token.type), postfix(token), precedence(token.type), p <= precedence(token.type), precedence(token.type)<=r, r);
@@ -656,21 +685,28 @@ Expr* E(int p) {
 		//printf("E(%d): %s binop %d postfix %d precedence() %d, p <=precedence() %d precedence() <= r %d r=%d\n", p, token_to_string(&token), binop(token.type), postfix(token), precedence(token.type), p <= precedence(token.type), precedence(token.type)<=r, r);
 	}
 	//pprint_expr(0, t);
+#endif
 	return t;
 }
 Expr* P(void) {
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
 	if (token.type == T_SUB) { next(); Expr* t = E(2); return mkop(T_SUB, t); }
-	else if (token.type == T_LPAREN) { next(); Expr* t = E(0); assert(token.type==T_RPAREN);
-	cout << __PRETTY_FUNCTION__ << " parenthesized: " << t->to_string(0) << endl;
+	else
+#endif
+		if (token.type == T_LPAREN) { next(); Expr* t = E(0); assert(token.type==T_RPAREN);
+	//cout << __PRETTY_FUNCTION__ << " parenthesized: " << t->to_string(0) << endl;
 	next(); return t; }
 	else if (atom(token)) {
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
 		if (token.type == T_IF) {
 			return parse_conditional();
 		}
+#endif
 		Expr* t = mkleaf(token); next(); return t;
 	}
 	else { cout << "Unexpected token " << token_to_string(token); exit(1); }
 }
+#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
 Expr* parse_conditional(){
 	next(); // advance past 'if'
 	auto condition = P();
@@ -680,6 +716,7 @@ Expr* parse_conditional(){
 	//	next();
 	return new ExprIf(condition, trueExpr, falseExpr);
 }
+#endif
 Expr* parse_let();
 Expr* parse_expr() {
 	if (token.type == T_LET) {
@@ -1058,6 +1095,22 @@ struct EnvItem {
 };
 typedef map<string,EnvItem> Env;
 
+string amToString(AddressMode m) {
+	switch (m.mode) {
+	case AddressMode::Local: return "local "+::to_string(m.localIndex);
+	case AddressMode::Global: return "global "+::to_string(m.node->address);
+	}
+	return "--";
+}
+static
+void pprint_env(const Env& env) {
+        for (auto i: env) {
+                //cout << "env "<<i.first <<" entry "<<i.second << flush;/*, env, entry); fflush(stdout);*/
+                //printf(" %s args %d mode %s\n", entry->name, entry->args, amToString(entry->mode.mode));
+                cout << i.first << " args " << i.second.args << ' ' << amToString(i.second.mode) << endl;
+        }
+}
+
 typedef list<Node*> GmStack;
 GmStack gmStack;
 struct GmStats {
@@ -1087,6 +1140,7 @@ void stepMkAp() {
 	gmStack.push_front(new NAp(a1, a2));
 	showStack("Stack after mkap");
 }
+#if MARK1 || MARK2
 void stepPush(unsigned n) {
 	showStack("Stack before push");
 	unsigned i=0;
@@ -1108,6 +1162,17 @@ void stepPush(unsigned n) {
 		++i;
 	}
 }
+#endif
+#if MARK3
+void stepPush(unsigned n) {
+	showStack("Stack before push");
+	auto p = gmStack.begin();
+	advance(p,n+1);
+	Node* arg = *p;
+	gmStack.push_front(arg);
+	showStack("Stack after push");
+}
+#endif
 #ifdef MARK1
 void stepSlide(int n) {
 	showStack("stack before slide "+::to_string(n));
@@ -1118,7 +1183,8 @@ void stepSlide(int n) {
 	gmStack.push_front(a0);
 	showStack("Stack after slide");
 }
-#else
+#endif
+#if defined(MARK2) || defined(MARK3)
 void stepPop(unsigned n) {
 	showStack("stack before pop "+::to_string(n));
 	for (unsigned i=1; i<=n; ++i)
@@ -1145,12 +1211,14 @@ void stepUnwind(ptrdiff_t& pc) {
 			pc = 0; // a stop instruction is there.
 			break;
 		}
+#if defined(MARK2) || defined(MARK3)
 		auto iitop = dynamic_cast<NInd*>(top);
 		if (iitop) {
 			Node* replacement = iitop->a;
 			gmStack.front() = replacement;
 			continue;
 		}
+#endif
 		auto aptop = dynamic_cast<NAp*>(top);
 		if (aptop) {
 			cout << "aptop " << aptop->to_string() << endl;
@@ -1180,7 +1248,8 @@ bool step(CodeArray& code, ptrdiff_t& pc) {
 	case PUSH: stepPush(instr.n); break;
 #ifdef MARK1
 	case SLIDE: stepSlide(instr.n); break;
-#else
+#endif
+#if defined(MARK2) || defined(MARK3)
 	case POP: stepPop(instr.n); break;
 	case UPDATE: stepUpdate(instr.n); break;
 #endif
@@ -1290,6 +1359,7 @@ void compileC(CodeArray& code, Expr* expr, Env& env) {
 	}
 	auto eapp = dynamic_cast<ExprApp*>(expr);
 	if (eapp) {
+#ifdef BIG_LIST_APP
 		auto pArg = eapp->args.rbegin();
 		compileC(code,*pArg++,env);
 		while (pArg != eapp->args.rend()) {
@@ -1297,6 +1367,11 @@ void compileC(CodeArray& code, Expr* expr, Env& env) {
 			//if (pArg != eapp->args.rend())
 				code.add(MkapInstruction());
 		}
+#else
+		Env shift; for (auto s : env) { EnvItem e = s.second; e.mode.localIndex++; shift[s.first]=e; }
+		cout << "Providing modified arg environment for argument "; pprint_env(shift);
+		compileC(code,eapp->arg,shift);
+#endif
 		compileC(code,eapp->fun,env);
 		code.add(MkapInstruction());
 		return;
