@@ -20,9 +20,9 @@
 
 using namespace std;
 
-//#define MARK1 1
+#define MARK1 1
 //#define MARK2 1
-#define MARK3 1
+//#define MARK3 1
 
 template <typename T, typename UnaryOp, typename T2=std::string, typename C2=std::list<T2>>
 C2 mapf(const T b, const T e, UnaryOp f)
@@ -1192,18 +1192,95 @@ void stepPop(unsigned n) {
 	showStack("Stack after pop");
 }
 void stepUpdate(unsigned n) {
+	if (gmStack.size()<=(n+1)) {
+		cout << "Stack not big enough for update" << endl;
+		showStack("");
+		throw 1;
+	}
 	showStack("stack before update "+::to_string(n));
 	Node* tos = gmStack.front(); gmStack.pop_front();
+	showStack("stack during update "+::to_string(n));
 	auto p = gmStack.begin();
 	advance(p, n);
-	assert(distance(gmStack.begin(),p) < gmStack.size());
+	cout << "distance(gmStack.begin(),p) " << distance(gmStack.begin(),p)
+		<< " gmStack.size() " << gmStack.size() << endl;
+	assert((unsigned)distance(gmStack.begin(),p) < gmStack.size());
 	*p = new NInd(tos);
 	showStack("Stack after update");
 }
 #endif
+#if defined(MARK1) || defined(MARK2) || defined(MARK3)
+struct UnwindNodeVisitor : public NodeVisitor {
+	UnwindNodeVisitor(ptrdiff_t& pc) : pc(pc),done(false) {}
+	ptrdiff_t& pc;
+	bool done;
+	void visitNInt(NInt*) {
+		pc = 0;
+		done = true;
+	}
+#if defined(MARK2) || defined(MARK3)
+	void visitNInd(NInd* iitop) {
+		Node* replacement = iitop->a;
+		gmStack.front() = replacement;
+	}
+#endif
+	void visitNGlobal(NGlobal* gtop) {
+#if defined(MARK1) || defined(MARK2)
+		if (gmStack.size() < gtop->args) {
+			cout << __PRETTY_FUNCTION__ << ": stack " << gmStack.size() << " not enough for " << gtop->args << " arguments" << endl;
+		}
+		pc = gtop->address;
+		done = true;
+#else
+		showStack("Stack during ap unwind beginning with a Global node");
+		if (gmStack.size() < gtop->args) {
+			cout << __PRETTY_FUNCTION__ << ": stack " << gmStack.size() << " not enough for " << gtop->args << " arguments" << endl;
+		}
+		gmStack.pop_front();
+		list<Node*> args;
+		for (unsigned i=0; i<gtop->args; ++i) {
+			auto argNode = dynamic_cast<NAp*>(gmStack.front()); gmStack.pop_front();
+			if (!argNode) {
+				cout<< __PRETTY_FUNCTION__  << "Argument node from spine is not NAp" << endl;
+				throw 1;
+			}
+			args.push_back(argNode->a2);
+		}
+		for (auto p = args.rbegin(); p != args.rend(); ++p) {
+			gmStack.push_front(*p);
+		}
+		pc = gtop->address;
+		done = true;
+		showStack("Stack during ap unwind");
+#endif
+	}
+	void visitNAp(NAp* aptop) {
+#if defined(MARK1) || defined(MARK2)
+		cout << "aptop " << aptop->to_string() << endl;
+		cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
+		gmStack.push_front(aptop->a1);
+		showStack("Stack during ap unwind");
+		//pc--; // instead of backing up, we reiterate directly.
+		// and to continue we simply don't set the done variable.
+#else
+		cout << "aptop " << aptop->to_string() << endl;
+		cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
+		gmStack.push_front(aptop->a1);
+		showStack("Stack during ap unwind");
+#endif
+	}
+};
+#endif
 // Unwind will cause a jump if the top node is an NGlobal.
 void stepUnwind(ptrdiff_t& pc) {
 	showStack("Stack before unwind");
+#if defined(MARK1) || defined(MARK2) || defined(MARK3)
+	UnwindNodeVisitor visitor(pc);
+	while (!visitor.done) {
+		Node* top = gmStack.front();
+		top->visit(&visitor);
+	}
+#else
 	while (true) {
 		Node* top = gmStack.front();
 		auto itop = dynamic_cast<NInt*>(top);
@@ -1237,6 +1314,7 @@ void stepUnwind(ptrdiff_t& pc) {
 			break;
 		}
 	}
+#endif
 	showStack("Stack after unwind");
 }
 bool step(CodeArray& code, ptrdiff_t& pc) {
@@ -1268,6 +1346,18 @@ Env envDup(const Env& env) {
 	return dup;
 }
 #endif
+// Shift the locals when there has been a push
+// that affects the pop/push distance to an argument.
+Env envShift(const Env& env, int sh) {
+	Env shift;
+	for (auto s: env) {
+		EnvItem e = s.second;
+		if (e.mode.mode==AddressMode::Local)
+			e.mode.localIndex+=sh;
+		shift[s.first]=e;
+	}
+	return shift;
+}
 static
 void envAddArgs(Env& env, const list<string> args) {
 	int kArg = 0;
@@ -1339,7 +1429,48 @@ Instruction MkapInstruction() {
 	ins.ins = MKAP;
 	return ins;
 }
+void compileC(CodeArray& code, Expr* expr, Env& env);
+struct CompileCVisitor : public ExprVisitor {
+	CompileCVisitor(CodeArray& code, Env& env) : code(code), env(env) {}
+	CodeArray& code;
+	Env& env;
+	void visitExprNum(ExprNum* eint) {
+		code.add(PushIntInstruction(eint->value));
+	}
+	void visitExprVar(ExprVar* evar) {
+		auto pm = env.find(evar->var);
+		if (pm != env.end()) {
+			switch (pm->second.mode.mode) {
+			case AddressMode::Local: code.add(PushInstruction(pm->second.mode.localIndex)); break;
+			case AddressMode::Global: code.add(PushGlobalInstruction(pm->second.mode.node)); break;
+			}
+			return;
+		}
+	}
+	void visitExprApp(ExprApp* eapp) {
+#ifdef BIG_LIST_APP
+		auto pArg = eapp->args.rbegin();
+		compileC(code,*pArg++,env);
+		while (pArg != eapp->args.rend()) {
+			compileC(code,*pArg++,env);
+			//if (pArg != eapp->args.rend())
+				code.add(MkapInstruction());
+		}
+#else
+		compileC(code,eapp->arg,env);
+#endif
+		Env shift = envShift(env, 1);
+		cout << "Providing modified arg environment" << endl; pprint_env(shift);
+		compileC(code,eapp->fun,shift);
+		code.add(MkapInstruction());
+		return;
+	}
+	void visitExprLet(ExprLet*) {}
+};
 void compileC(CodeArray& code, Expr* expr, Env& env) {
+	CompileCVisitor visitor(code, env);
+	expr->visit(&visitor);
+	return;
 	auto eint = dynamic_cast<ExprNum*>(expr);
 	if (eint) {
 		code.add(PushIntInstruction(eint->value));
@@ -1368,7 +1499,7 @@ void compileC(CodeArray& code, Expr* expr, Env& env) {
 				code.add(MkapInstruction());
 		}
 #else
-		Env shift; for (auto s : env) { EnvItem e = s.second; e.mode.localIndex++; shift[s.first]=e; }
+		Env shift = envShift(env, 1);
 		cout << "Providing modified arg environment for argument "; pprint_env(shift);
 		compileC(code,eapp->arg,shift);
 #endif
