@@ -10,6 +10,7 @@
 #include <fstream>
 #include <list>
 #include <map>
+#include <stack>
 #include <string>
 #include <cstring>
 #include <vector>
@@ -21,14 +22,21 @@
 using namespace std;
 
 //#define MARK1 1
-#define MARK2 1
-//#define MARK3 1
+//#define MARK2 1
+#define MARK3 1
 
 template <typename T, typename UnaryOp, typename T2=std::string, typename C2=std::list<T2>>
 C2 mapf(const T b, const T e, UnaryOp f)
 {
 	C2 out;
 	std::transform(b, e, back_inserter(out), f);
+	return out;
+}
+template <typename C1, typename UnaryOp, typename T2=std::string, typename C2=C1>
+C2 mapf(const C1 in, UnaryOp f)
+{
+	C2 out;
+	std::transform(in.begin(), in.end(), back_inserter(out), f);
 	return out;
 }
 template <typename T, typename UnaryOp, typename T2=std::string, typename C2=std::list<T2>>
@@ -1196,11 +1204,11 @@ void stepPop(unsigned n) {
 	showStack("Stack after pop");
 }
 void stepUpdate(unsigned n) {
-	if (gmStack.size()<=(n+1)) {
-		cout << "Stack not big enough for update" << endl;
-		showStack("");
-		throw 1;
-	}
+	//if (gmStack.size()<=(n+1)) {
+	//	cout << "Judgment " << gmStack.size() << " vs " << (n+1) << " is " << (gmStack.size()>(n+1)) << " Stack size " << gmStack.size() << " not big enough for update " << n << endl;
+	//	showStack("");
+	//	throw 1;
+	//}
 	showStack("stack before update "+::to_string(n));
 	Node* tos = gmStack.front(); gmStack.pop_front();
 	showStack("stack during update "+::to_string(n));
@@ -1208,7 +1216,7 @@ void stepUpdate(unsigned n) {
 	advance(p, n);
 	cout << "distance(gmStack.begin(),p) " << distance(gmStack.begin(),p)
 		<< " gmStack.size() " << gmStack.size() << endl;
-	assert((unsigned)distance(gmStack.begin(),p) < gmStack.size());
+	//assert((unsigned)distance(gmStack.begin(),p) < gmStack.size());
 	*p = new NInd(tos);
 	showStack("Stack after update");
 }
@@ -1229,6 +1237,44 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		showStack("Stack during ap unwind");
 	}
 #endif
+	list<Node*> tl(list<Node*> x) {
+		auto r = x;
+		r.pop_front();
+		return r;
+	}
+	list<Node*> take(unsigned t, list<Node*> x) {
+		list<Node*> r;
+		list<Node*>::const_iterator px = x.begin();
+		for (unsigned i=0; i<t; i++)
+		{
+			r.push_back(*px++);
+		}
+		return r;
+	}
+	list<Node*> drop(unsigned d, list<Node*> x) {
+		list<Node*> r;
+		auto px = next(x.begin(),d);
+		while (px != x.end()) {
+			r.push_back(*px++);
+		}
+
+		return r;
+	}
+	list<Node*> concat(list<Node*> a, list<Node*> b) {
+		list<Node*> r = a;
+		r.insert(r.end(), b.begin(), b.end());
+		return r;
+	}
+	list<Node*> rearrange(unsigned n, list<Node*> as) {
+		auto asp = mapf(tl(as), [](Node* el) {
+			auto ap=dynamic_cast<NAp*>(el);
+			if (ap) {
+				return ap->a2;
+			}
+			return el;
+		});
+		return concat(take(n, asp), drop(n, as));
+	}
 	void visitNGlobal(NGlobal* gtop) {
 #if defined(MARK1) || defined(MARK2)
 		if (gmStack.size() < gtop->args) {
@@ -1242,6 +1288,10 @@ struct UnwindNodeVisitor : public NodeVisitor {
 			cout << __PRETTY_FUNCTION__ << ": stack " << gmStack.size() << " not enough for " << gtop->args << " arguments" << endl;
 		}
 		gmStack.pop_front();
+#if 1
+		if (gtop->args)
+			gmStack = rearrange(gtop->args, gmStack);
+#else
 		list<Node*> args;
 		for (unsigned i=0; i<gtop->args; ++i) {
 			auto argNode = dynamic_cast<NAp*>(gmStack.front()); gmStack.pop_front();
@@ -1254,6 +1304,7 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		for (auto p = args.rbegin(); p != args.rend(); ++p) {
 			gmStack.push_front(*p);
 		}
+#endif
 		pc = gtop->address;
 		done = true;
 		showStack("Stack during ap unwind");
@@ -1274,6 +1325,7 @@ void stepUnwind(ptrdiff_t& pc) {
 	UnwindNodeVisitor visitor(pc);
 	while (!visitor.done) {
 		Node* top = gmStack.front();
+		cout << "Unwind viewing " << top->to_string() << " from top of stack of size " << gmStack.size() << endl;
 		top->visit(&visitor);
 	}
 	showStack("Stack after unwind");
@@ -1521,6 +1573,11 @@ int main(int argc, char** argv)
     }
     ptrdiff_t pc = code.code.size();
     code.add(PushGlobalInstruction(mode.node));
+#if !defined(MARK1)
+    //code.add(UpdateInstruction(0));
+    //code.add(PopInstruction(0));
+    // maybe the above are not good for zero parameters?
+#endif
     code.add(UnwindInstruction());
     for (unsigned i=0; i<code.code.size(); ++i) {
     	string id;
