@@ -20,8 +20,8 @@
 
 using namespace std;
 
-#define MARK1 1
-//#define MARK2 1
+//#define MARK1 1
+#define MARK2 1
 //#define MARK3 1
 
 template <typename T, typename UnaryOp, typename T2=std::string, typename C2=std::list<T2>>
@@ -138,7 +138,7 @@ struct ExprVar : public Expr {
 	void visit(ExprVisitor* v) { v->visitExprVar(this); }
 	string var;
 };
-#undef BIG_LIST_AP
+#define BIG_LIST_AP
 /* BIG_LIST_AP is for the alternative of representing an application of a series of atoms
  * using an NAp node with one function and a list of arguments instead of as a chain of
  * NAp nodes with only one argument.
@@ -161,7 +161,7 @@ struct ExprApp : public Expr {
 string ExprApp::to_string(int col) const {
 	string rv = "APP " + fun->to_string(col);
 	rv += " ARGS ";
-#ifdef BIG_LIST_APP
+#ifdef BIG_LIST_AP
 	auto argstrs = mapf(args.begin(), args.end(), [col](const Expr* ex) { return ex->to_string(col); });
 	if (argstrs.size()) {
 		rv += '\n';
@@ -1226,6 +1226,7 @@ struct UnwindNodeVisitor : public NodeVisitor {
 	void visitNInd(NInd* iitop) {
 		Node* replacement = iitop->a;
 		gmStack.front() = replacement;
+		showStack("Stack during ap unwind");
 	}
 #endif
 	void visitNGlobal(NGlobal* gtop) {
@@ -1408,21 +1409,28 @@ struct CompileCVisitor : public ExprVisitor {
 		}
 	}
 	void visitExprApp(ExprApp* eapp) {
-#ifdef BIG_LIST_APP
-		auto pArg = eapp->args.rbegin();
-		compileC(code,*pArg++,env);
-		while (pArg != eapp->args.rend()) {
-			compileC(code,*pArg++,env);
-			//if (pArg != eapp->args.rend())
-				code.add(MkapInstruction());
+#ifdef BIG_LIST_AP
+		int shiftCount = 0;
+		for (auto pArg = eapp->args.rbegin(); pArg!=eapp->args.rend(); ++pArg) {
+			if (shiftCount == 0) {
+				compileC(code,*pArg,env);
+			} else {
+				Env shift = envShift(env, shiftCount);
+				compileC(code,*pArg,shift);
+			}
+			shiftCount++;
 		}
+		Env shift = envShift(env, shiftCount);
+		compileC(code,eapp->fun,shift);
+		for (unsigned a=0; a<eapp->args.size(); ++a)
+			code.add(MkapInstruction());
 #else
 		compileC(code,eapp->arg,env);
-#endif
 		Env shift = envShift(env, 1);
 		cout << "Providing modified arg environment" << endl; pprint_env(shift);
 		compileC(code,eapp->fun,shift);
 		code.add(MkapInstruction());
+#endif
 		return;
 	}
 	void visitExprLet(ExprLet*) {}
