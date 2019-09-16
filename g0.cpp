@@ -65,7 +65,6 @@ string join(const list<string>& strs, int joint) {
 	return r;
 }
 
-#undef BIG_LIST_AP
 extern string indent(int col);
 struct ExprVar;
 struct ExprNum;
@@ -139,6 +138,11 @@ struct ExprVar : public Expr {
 	void visit(ExprVisitor* v) { v->visitExprVar(this); }
 	string var;
 };
+#undef BIG_LIST_AP
+/* BIG_LIST_AP is for the alternative of representing an application of a series of atoms
+ * using an NAp node with one function and a list of arguments instead of as a chain of
+ * NAp nodes with only one argument.
+ */
 struct ExprApp : public Expr {
 #ifdef BIG_LIST_AP
 	ExprApp(Expr* fun, Expr* arg) : fun(fun) { args.push_back(arg); }
@@ -1255,66 +1259,22 @@ struct UnwindNodeVisitor : public NodeVisitor {
 #endif
 	}
 	void visitNAp(NAp* aptop) {
-#if defined(MARK1) || defined(MARK2)
 		cout << "aptop " << aptop->to_string() << endl;
 		cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
 		gmStack.push_front(aptop->a1);
 		showStack("Stack during ap unwind");
 		//pc--; // instead of backing up, we reiterate directly.
-		// and to continue we simply don't set the done variable.
-#else
-		cout << "aptop " << aptop->to_string() << endl;
-		cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
-		gmStack.push_front(aptop->a1);
-		showStack("Stack during ap unwind");
-#endif
 	}
 };
 #endif
 // Unwind will cause a jump if the top node is an NGlobal.
 void stepUnwind(ptrdiff_t& pc) {
 	showStack("Stack before unwind");
-#if defined(MARK1) || defined(MARK2) || defined(MARK3)
 	UnwindNodeVisitor visitor(pc);
 	while (!visitor.done) {
 		Node* top = gmStack.front();
 		top->visit(&visitor);
 	}
-#else
-	while (true) {
-		Node* top = gmStack.front();
-		auto itop = dynamic_cast<NInt*>(top);
-		if (itop) {
-			pc = 0; // a stop instruction is there.
-			break;
-		}
-#if defined(MARK2) || defined(MARK3)
-		auto iitop = dynamic_cast<NInd*>(top);
-		if (iitop) {
-			Node* replacement = iitop->a;
-			gmStack.front() = replacement;
-			continue;
-		}
-#endif
-		auto aptop = dynamic_cast<NAp*>(top);
-		if (aptop) {
-			cout << "aptop " << aptop->to_string() << endl;
-			cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
-			gmStack.push_front(aptop->a1);
-			showStack("Stack during ap unwind");
-			//pc--; // instead of backing up, we reiterate directly.
-			continue;
-		}
-		auto gtop = dynamic_cast<NGlobal*>(top);
-		if (gtop) {
-			if (gmStack.size() < gtop->args) {
-				cout << __PRETTY_FUNCTION__ << ": stack " << gmStack.size() << " not enough for " << gtop->args << " arguments" << endl;
-			}
-			pc = gtop->address;
-			break;
-		}
-	}
-#endif
 	showStack("Stack after unwind");
 }
 bool step(CodeArray& code, ptrdiff_t& pc) {
@@ -1470,43 +1430,6 @@ struct CompileCVisitor : public ExprVisitor {
 void compileC(CodeArray& code, Expr* expr, Env& env) {
 	CompileCVisitor visitor(code, env);
 	expr->visit(&visitor);
-	return;
-	auto eint = dynamic_cast<ExprNum*>(expr);
-	if (eint) {
-		code.add(PushIntInstruction(eint->value));
-		return;
-	}
-	auto evar = dynamic_cast<ExprVar*>(expr);
-	if (evar) {
-		auto pm = env.find(evar->var);
-		if (pm != env.end()) {
-			switch (pm->second.mode.mode) {
-			case AddressMode::Local: code.add(PushInstruction(pm->second.mode.localIndex)); break;
-			case AddressMode::Global: code.add(PushGlobalInstruction(pm->second.mode.node)); break;
-			}
-			return;
-		}
-		return;
-	}
-	auto eapp = dynamic_cast<ExprApp*>(expr);
-	if (eapp) {
-#ifdef BIG_LIST_APP
-		auto pArg = eapp->args.rbegin();
-		compileC(code,*pArg++,env);
-		while (pArg != eapp->args.rend()) {
-			compileC(code,*pArg++,env);
-			//if (pArg != eapp->args.rend())
-				code.add(MkapInstruction());
-		}
-#else
-		Env shift = envShift(env, 1);
-		cout << "Providing modified arg environment for argument "; pprint_env(shift);
-		compileC(code,eapp->arg,shift);
-#endif
-		compileC(code,eapp->fun,env);
-		code.add(MkapInstruction());
-		return;
-	}
 }
 void compileR(CodeArray& code, Expr* expr, size_t args, Env& env) {
 	compileC(code,expr,env);
