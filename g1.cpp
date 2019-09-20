@@ -1187,9 +1187,12 @@ typedef list<Node*> GmStack;
 GmStack nodeStack;
 typedef list<int> ValueStack;
 ValueStack valueStack;
-struct GmStats {
-
+struct DumpItem {
+	GmStack nodeStack;
+	ptrdiff_t code;
 };
+typedef list<DumpItem> Dump;
+Dump dump;
 void showStack(const string& label) {
 	cout << label << endl;
 	for (auto s : nodeStack) {
@@ -1491,7 +1494,16 @@ void stepEval(/*const Instruction& instr,*/ ptrdiff_t& pc) {
 		showStack("Before iteration of EVAL");
 		auto ap = dynamic_cast<NAp*>(nodeStack.front());
 		if (ap) {
-			pc = 1;
+			//throw "Eval of apply needs to add to dump";
+			DumpItem e;
+			e.code = pc; // instruction after Eval.
+			e.nodeStack = nodeStack;
+			e.nodeStack.pop_front();
+			dump.push_front(e);
+			if (nodeStack.size()>1) {
+				nodeStack.erase(next(nodeStack.begin()),nodeStack.end());
+			}
+			pc = 1; // Go to unwind
 			break;
 		}
 		auto ii = dynamic_cast<NInd*>(nodeStack.front());
@@ -1499,17 +1511,7 @@ void stepEval(/*const Instruction& instr,*/ ptrdiff_t& pc) {
 			nodeStack.front() = ii->a;
 			continue;
 		}
-		auto i = dynamic_cast<NInt*>(nodeStack.front());
-		if (i) {
-			// If the DUMP is empty we stop
-			pc = 0;
-			break;
-		}
-		auto b = dynamic_cast<NBool*>(nodeStack.front());
-		if (b) {
-			pc = 0;
-			break;
-		}
+		// All other nodes are whnf and need no further effort.
 		break;
 	}
 	showStack("After EVAL");
