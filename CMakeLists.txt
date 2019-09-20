@@ -29,6 +29,8 @@ add_executable(fpstg fpstg.cpp)
 
 add_executable(g0 g0.cpp)
 
+add_executable(g1 g1.cpp)
+
 enable_testing()
 if (original)
 add_test(NAME add2 COMMAND fpstg ../tests/add2.dat)

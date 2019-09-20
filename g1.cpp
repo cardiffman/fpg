@@ -57,6 +57,30 @@ C2 mapfl(const T* a, const T3& n, UnaryOp f)
 	}
 	return out;
 }
+template <typename BinaryOp>
+string fold(list<string>& strings, string base, BinaryOp op)
+{
+	list<string>::const_iterator ps = strings.begin();
+	string out = op(base,*ps++);
+	while (ps != strings.end()) {
+		out = op(out,*ps++);
+	}
+	return out;
+}
+template <typename C1, typename C2, typename BinaryOp>
+C2 fold(C1& strings, C2 base, BinaryOp op)
+{
+	typename C1::const_iterator ps = strings.begin();
+	C2 out = op(base,*ps++);
+	while (ps != strings.end()) {
+		out = op(out,*ps++);
+	}
+	return out;
+}
+void f() {
+	list<int> ints;
+	fold(ints, 0, [](int a,int b){ return a+b; });
+}
 string join(const list<string>& strs, int joint) {
 	string r;
 	auto p = strs.begin();
@@ -1014,14 +1038,14 @@ const char* insToString(InstructionType ins) {
 		return insNames[ins];
 	return "inxxx";
 }
-struct NGlobal;
+struct NFun;
 struct NInt;
 struct NBool;
 struct NAp;
 struct NInd;
 struct NodeVisitor {
 	virtual ~NodeVisitor() {}
-	virtual void visitNGlobal(NGlobal* n) = 0;
+	virtual void visitNFun(NFun* n) = 0;
 	virtual void visitNInt(NInt* n) = 0;
 	virtual void visitNBool(NBool* n) = 0;
 	virtual void visitNAp(NAp* n) = 0;
@@ -1032,12 +1056,12 @@ struct Node {
 	virtual string to_string() const = 0;
 	virtual void visit(NodeVisitor* v) = 0;
 };
-struct NGlobal : public Node {
-	NGlobal(ptrdiff_t address, unsigned args) : address(address), args(args) {}
+struct NFun : public Node {
+	NFun(ptrdiff_t address, unsigned args) : address(address), args(args) {}
 	string to_string() const {
-		return "NG " + ::to_string(address);
+		return "NFun " + ::to_string(address);
 	}
-	void visit(NodeVisitor* v) { v->visitNGlobal(this); }
+	void visit(NodeVisitor* v) { v->visitNFun(this); }
 	ptrdiff_t address;
 	unsigned args;
 };
@@ -1084,7 +1108,7 @@ struct Instruction {
 	Instruction(InstructionType ins, ptrdiff_t c) : ins(ins),dest(c),node(nullptr) {}
 	InstructionType ins;
 	ptrdiff_t dest;
-	NGlobal* node;
+	NFun* node;
 	union {
 		unsigned n;
 		int i;
@@ -1100,8 +1124,8 @@ struct CodeArray {
 struct AddressMode {
 	enum Mode { Local, Global };
 	Mode mode;
-	union { unsigned localIndex; /*ptrdiff_t address;*/ NGlobal* node; };
-	AddressMode(NGlobal* node) : mode(Global), node(node) {}
+	union { unsigned localIndex; /*ptrdiff_t address;*/ NFun* node; };
+	AddressMode(NFun* node) : mode(Global), node(node) {}
 	AddressMode() : mode(Local) {}
 };
 string instructionToString(const Instruction& ins) {
@@ -1171,12 +1195,12 @@ void showValues(const string& label) {
 	}
 	cout << endl;
 }
-void stepPushGlobal(NGlobal* sc) {
+void stepPushGlobal(NFun* sc) {
 	showStack("Stack before pushGlobal");
 	nodeStack.push_front(sc);
 	showStack("Stack after pushGlobal");
 }
-void stepPushFun(NGlobal* sc) {
+void stepPushFun(NFun* sc) {
 	showStack("Stack before pushFun");
 	nodeStack.push_front(sc);
 	showStack("Stack after pushFun");
@@ -1306,10 +1330,29 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		});
 		return concat(take(n, asp), drop(n, as));
 	}
-	void visitNGlobal(NGlobal* gtop) {
+	void visitNFun(NFun* gtop) {
 		if (nodeStack.size() < gtop->args) {
 			cout << __PRETTY_FUNCTION__ << ": stack " << nodeStack.size() << " not enough for " << gtop->args << " arguments" << endl;
 		}
+		GmStack spine;
+		GmStack::const_iterator p=nodeStack.begin(); // where NFun is.
+		++p; // first argument;
+		for (unsigned i=1; i<gtop->args; ++i) {
+			Node* a = *p++;
+			NAp* c = dynamic_cast<NAp*>(a);
+			if (c == nullptr) {
+				cout << "argument should be NAp but isn't" << endl;
+				throw "Bad arg";
+			}
+			spine.push_back(c->a2);
+		}
+		cout << __PRETTY_FUNCTION__<< " Spine ";
+		for (const auto& se : spine) {
+			cout << ' ' << se->to_string() << endl;
+		}
+		nodeStack = concat(take(gtop->args, nodeStack), drop(gtop->args+1,nodeStack));
+		showStack("Stack during ap unwind");
+
 		pc = gtop->address;
 		done = true;
 	}
@@ -1338,7 +1381,7 @@ void stepPushBasic(const Instruction& ins) {
 	showValues("Stack after pushbasic");
 }
 void stepBinop(const Instruction& ins) {
-	showValues("Stack before "+instructionToString(&ins));
+	showValues("Stack before "+instructionToString(ins));
 	if (valueStack.size() < 2)
 		throw string(insToString(ins.ins))+" Value stack doesn't have two operands";
 	auto right = valueStack.front(); valueStack.pop_front();
@@ -1350,7 +1393,7 @@ void stepBinop(const Instruction& ins) {
 	case LT: valueStack.front() = (left<right); break;
 	default: throw "Unimplemented math in stepBinop";
 	}
-	showValues("Stack after pushbasic");
+	showValues("Stack after "+instructionToString(ins));
 }
 void stepMkInt() {
 	showValues("Stack before MKINT");
@@ -1360,7 +1403,7 @@ void stepMkInt() {
 }
 void stepRet(const Instruction& ins, ptrdiff_t& pc) {
 	showStack("Before RET "+::to_string(ins.n));
-	for (auto n=0; n<ins.n; n++)
+	for (unsigned n=0; n<ins.n; n++)
 		nodeStack.pop_front();
 	showStack("RET after popping "+::to_string(ins.n));
 	while (true) {
@@ -1389,7 +1432,7 @@ void stepRet(const Instruction& ins, ptrdiff_t& pc) {
 	};
 	showStack("After RET");
 }
-void stepEval(const Instruction& instr, ptrdiff_t& pc) {
+void stepEval(/*const Instruction& instr,*/ ptrdiff_t& pc) {
 	while (true) {
 		showStack("Before iteration of EVAL");
 		auto ap = dynamic_cast<NAp*>(nodeStack.front());
@@ -1417,7 +1460,7 @@ void stepEval(const Instruction& instr, ptrdiff_t& pc) {
 	}
 	showStack("After EVAL");
 }
-void stepGet(const Instruction& instr) {
+void stepGet(/*const Instruction& instr*/) {
 	showStack("Before GET");
 	while (true)
 	{
@@ -1468,8 +1511,8 @@ bool step(CodeArray& code, ptrdiff_t& pc) {
 	case PUSHNIL:
 	case TL: throw "Unknown instruction in step";
 	case ADD: stepBinop(instr); break;
-	case EVAL: stepEval(instr, pc); break;
-	case GET: stepGet(instr); break;
+	case EVAL: stepEval(/*instr,*/ pc); break;
+	case GET: stepGet(/*instr*/); break;
 	case JFALSE: stepJFalse(instr, pc); break;
 	case JMP: stepJmp(instr, pc); break;
 	case LE:
@@ -1562,7 +1605,7 @@ Instruction PushInstruction(unsigned local) {
 	ins.n = local;
 	return ins;
 }
-Instruction PushFunInstruction(NGlobal* global) {
+Instruction PushFunInstruction(NFun* global) {
 	Instruction ins;
 	ins.ins = PUSHFUN;
 	ins.node = global;
@@ -1590,6 +1633,7 @@ struct CompileCVisitor : public ExprVisitor {
 			case AddressMode::Local: code.add(PushInstruction(pm->second.mode.localIndex)); break;
 			case AddressMode::Global: code.add(PushFunInstruction(pm->second.mode.node)); break;
 			}
+			cout << __PRETTY_FUNCTION__ << " compileC VAR ended at " << code.code.size() << endl;
 			return;
 		}
 		cout << __PRETTY_FUNCTION__ << " Can't find " << evar->var << " in "; pprint_env(env);
@@ -1610,6 +1654,7 @@ struct CompileCVisitor : public ExprVisitor {
 		compileC(code,eapp->fun,shift);
 		for (unsigned a=0; a<eapp->args.size(); ++a)
 			code.add(MkapInstruction());
+		cout << __PRETTY_FUNCTION__ << "Mkaps for " << eapp->to_string(0) << ", " << eapp->args.size() << "args, ended at " << code.code.size() << endl;
 #else
 		compileC(code,eapp->arg,env);
 		Env shift = envShift(env, 1);
@@ -1646,14 +1691,18 @@ struct CompileCVisitor : public ExprVisitor {
 		// desugar in this case:
 		auto e2 = new ExprApp(new ExprVar("sub"),e->left);
 		e2->args.push_back(e->right);
-		e2->visit(this);
+		//e2->visit(this);
+		compileC(code, e2, env);
 		cout << __PRETTY_FUNCTION__ << " Desugar: " << e->to_string(0) << " to " << e2->to_string(3) << endl;
+		cout << __PRETTY_FUNCTION__ << " Desugar: compileC code ended at " << code.code.size() << endl;
 	}
 	void visitExprMul(ExprMul* e) {
 		auto e2 = new ExprApp(new ExprVar("mul"),e->left);
 		e2->args.push_back(e->right);
-		e2->visit(this);
+		//e2->visit(this);
+		compileC(code, e2, env);
 		cout << __PRETTY_FUNCTION__ << " Desugar: " << e->to_string(0) << " to " << e2->to_string(3) << endl;
+		cout << __PRETTY_FUNCTION__ << " Desugar: compileC code ended at " << code.code.size() << endl;
 	}
 	void visitExprDiv(ExprDiv*) {}
 	void visitExprMod(ExprMod*) {}
@@ -1723,10 +1772,12 @@ struct CompileBVisitor : public ExprVisitor {
 	void visitExprOper(ExprOper*) {}
 	void visitExprAdd(ExprAdd* e) {
 		cout << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
+		cout << __PRETTY_FUNCTION__ << " code begins at " << code.code.size() << endl;
 		compileB(code,e->left, env);
 		Env shift = envShift(env, 1);
 		compileB(code,e->right, shift);
 		code.add(Instruction(ADD));
+		cout << __PRETTY_FUNCTION__ << " code begins at " << code.code.size() << endl;
 	}
 	void visitExprSub(ExprSub* e) {
 		cout << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
@@ -1737,10 +1788,13 @@ struct CompileBVisitor : public ExprVisitor {
 	}
 	void visitExprMul(ExprMul* e) {
 		cout << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
-		e->left->visit(this); // open coded for economy
+		cout << __PRETTY_FUNCTION__ << " code begins at " << code.code.size() << endl;
+		//e->left->visit(this); // open coded for economy
+		compileB(code,e->left, env);
 		Env shift = envShift(env, 1);
 		compileB(code,e->right, shift); // can't open code with different env parameter
 		code.add(Instruction(MUL));
+		cout << __PRETTY_FUNCTION__ << " code begins at " << code.code.size() << endl;
 	}
 	void visitExprDiv(ExprDiv*) {}
 	void visitExprMod(ExprMod*) {}
@@ -1934,7 +1988,7 @@ int main(int argc, char** argv)
     for (auto def : defs) {
     	EnvItem item;
 		item.args = def.args.size();
-		item.mode = AddressMode(new NGlobal(code.code.size(), item.args));
+		item.mode = AddressMode(new NFun(code.code.size(), item.args));
 		env[def.name] = item;
 		compileSc(code, def, env);
     }
