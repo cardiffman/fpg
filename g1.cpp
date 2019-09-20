@@ -1058,12 +1058,12 @@ struct NFun : public Node {
 	unsigned args;
 };
 struct NInt : public Node {
-	NInt(int i) : i(i) {}
+	NInt(ptrdiff_t i) : i(i) {}
 	string to_string() const {
 		return "NInt " + ::to_string(i);
 	}
 	void visit(NodeVisitor* v) { v->visitNInt(this); }
-	int i;
+	ptrdiff_t i;
 };
 struct NBool : public Node {
 	NBool(bool b) : b(b) {}
@@ -1204,7 +1204,7 @@ void stepPushFun(NFun* sc) {
 	nodeStack.push_front(sc);
 	showStack("Stack after pushFun");
 }
-void stepPushInt(int i) {
+void stepPushInt(ptrdiff_t i) {
 	showStack("Stack before pushInt");
 	nodeStack.push_front(new NInt(i));
 	showStack("Stack after pushInt");
@@ -1571,7 +1571,7 @@ bool step(CodeArray& code, ptrdiff_t& pc) {
 	case PUSH: stepPush(instr.n); break;
 	case PUSHBASIC: stepPushBasic(instr); break;
 	case PUSHFUN: stepPushFun(instr.node); break;
-	case PUSHINT: stepPushInt(instr.i); break;
+	case PUSHINT: stepPushInt(instr.dest); break;
 	case RET: stepRet(instr, pc); break;
 	case SLIDE: stepSlide(instr.n); break;
 	case SUB: stepBinop(instr); break;
