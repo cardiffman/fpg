@@ -215,23 +215,6 @@ struct ExprStr : public Expr {
 	string to_string(int) const { return "STR \"" + str + '"'; }
 	void visit(ExprVisitor* v) { v->visitExprStr(this); }
 };
-#if 0
-struct ExprOper : public Expr {
-	ExprOper(int op) : op(op) {}
-	int op;
-	string to_string(int col) const;
-	void visit(ExprVisitor* v) { v->visitExprOper(this); }
-};
-string ExprOper::to_string(int) const {
-	switch (op) {
-	case 9: return "LT";
-	case 15: return "ADD";
-	case 16: return "SUB";
-	case 17: return "MUL";
-	}
-	return ::to_string(op);
-}
-#endif
 struct ExprNull : public Expr {
 	ExprNull(Expr* subject) : subject(subject) {}
 	string to_string(int c) const { return "NULLP "+subject->to_string(c); }
@@ -572,13 +555,11 @@ Expr *parse_expr();
 void pprint_expr(int col, const Expr *e);
 Expr* mkleaf(tkn t) {
 	switch (t.type) {
-#if !defined(MARK1) && !defined(MARK2) && !defined(MARK3)
 	case T_STR: return new ExprStr(t.s);
 	case T_CHAR: return new ExprChar(t.value);
 	case T_NIL: return new ExprNil();
 	case T_TRUE: return new ExprBool(true);
 	case T_FALSE: return new ExprBool(false);
-#endif
 	case T_NAME: return new ExprVar(t.s);
 	case T_NUM: return new ExprNum(t.value);
 	default: return NULL;
@@ -1218,11 +1199,6 @@ void showValues(const string& label) {
 	}
 	cout << endl;
 }
-void stepPushGlobal(NFun* sc) {
-	showStack("Stack before pushGlobal");
-	nodeStack.push_front(sc);
-	showStack("Stack after pushGlobal");
-}
 void stepPushFun(NFun* sc) {
 	showStack("Stack before pushFun");
 	nodeStack.push_front(sc);
@@ -1606,15 +1582,6 @@ bool step(CodeArray& code, ptrdiff_t& pc) {
 	}
 	return instr.ins != STOP;
 }
-#if 0
-// Assignment operator does this
-static
-Env envDup(const Env& env) {
-	Env dup = env;
-    //printf("envDup "); pprint_env(dup);
-	return dup;
-}
-#endif
 // Shift the locals when there has been a push
 // that affects the pop/push distance to an argument.
 Env envShift(const Env& env, int sh) {
@@ -1649,46 +1616,6 @@ bool find_mode(const Env& env, const string& var, AddressMode* mode) {
 	return false;
 }
 
-Instruction SlideInstruction(unsigned n) {
-	Instruction ins;
-	ins.ins = SLIDE;
-	ins.n = n;
-	return ins;
-}
-Instruction UpdateInstruction(unsigned n) {
-	Instruction ins;
-	ins.ins = UPDATE;
-	ins.n = n;
-	return ins;
-}
-Instruction UnwindInstruction() {
-	Instruction ins;
-	ins.ins = UNWIND;
-	return ins;
-}
-Instruction PushIntInstruction(ptrdiff_t v) {
-	Instruction ins;
-	ins.ins = PUSHINT;
-	ins.i = v;
-	return ins;
-}
-Instruction PushInstruction(unsigned local) {
-	Instruction ins;
-	ins.ins = PUSH;
-	ins.n = local;
-	return ins;
-}
-Instruction PushFunInstruction(NFun* global) {
-	Instruction ins;
-	ins.ins = PUSHFUN;
-	ins.node = global;
-	return ins;
-}
-Instruction MkapInstruction() {
-	Instruction ins;
-	ins.ins = MKAP;
-	return ins;
-}
 void compileC(CodeArray& code, Expr* expr, Env& env);
 void compileE(CodeArray& code, Expr* expr, Env& env);
 void compileB(CodeArray& code, Expr* expr, Env& env);
