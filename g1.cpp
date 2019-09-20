@@ -1232,8 +1232,8 @@ void stepPush(unsigned n) {
 		++i;
 	}
 	auto p = nodeStack.begin();
-#if 0
-	advance(p,n+1);
+#if 1
+	advance(p,n);
 	Node* node = *p;
 	//auto ap = dynamic_cast<NAp*>(node);
 	//assert(ap);
@@ -1241,7 +1241,7 @@ void stepPush(unsigned n) {
 	//nodeStack.push_front(arg);
 	nodeStack.push_front(node);
 #else
-	advance(p,n+1);
+	advance(p,n);
 	Node* node = *p;
 	cout << "Push: About to pull " << node->to_string() << " up to top " << endl;
 	auto ap = dynamic_cast<NAp*>(node);
@@ -1314,12 +1314,9 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		return r;
 	}
 	list<Node*> drop(unsigned d, list<Node*> x) {
-		list<Node*> r;
-		auto px = next(x.begin(),d);
-		while (px != x.end()) {
-			r.push_back(*px++);
-		}
-
+		list<Node*> r = x;
+		auto px = next(r.begin(),d);
+		r.erase(r.begin(), px);
 		return r;
 	}
 	list<Node*> concat(list<Node*> a, list<Node*> b) {
@@ -1344,7 +1341,7 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		GmStack spine;
 		GmStack::const_iterator p=nodeStack.begin(); // where NFun is.
 		++p; // first argument;
-		for (unsigned i=1; i<gtop->args; ++i) {
+		for (unsigned i=0; i<gtop->args; ++i) {
 			Node* a = *p++;
 			NAp* c = dynamic_cast<NAp*>(a);
 			if (c == nullptr) {
@@ -1353,12 +1350,15 @@ struct UnwindNodeVisitor : public NodeVisitor {
 			}
 			spine.push_back(c->a2);
 		}
-		cout << __PRETTY_FUNCTION__<< " Spine ";
+		cout << __PRETTY_FUNCTION__<< " Spine [";
 		for (const auto& se : spine) {
-			cout << ' ' << se->to_string() << endl;
+			cout << ' ' << se->to_string();
 		}
-		nodeStack = concat(take(gtop->args, nodeStack), drop(gtop->args+1,nodeStack));
-		showStack("Stack during ap unwind");
+		cout << "]" << endl;
+		cout << __PRETTY_FUNCTION__ << " Fun " << gtop->to_string() << endl;
+		//nodeStack = concat(take(gtop->args, nodeStack), drop(gtop->args+1,nodeStack));
+		nodeStack = concat(take(gtop->args, spine), drop(gtop->args+1,nodeStack));
+		showStack("Stack during fun unwind");
 
 		pc = gtop->address;
 		done = true;
@@ -1460,6 +1460,8 @@ void stepMkInt() {
 }
 void stepRet(const Instruction& ins, ptrdiff_t& pc) {
 	showStack("Before RET "+::to_string(ins.n));
+	if (nodeStack.size() <= ins.n)
+		throw "Stack underflow";
 	for (unsigned n=0; n<ins.n; n++)
 		nodeStack.pop_front();
 	showStack("RET after popping "+::to_string(ins.n));
