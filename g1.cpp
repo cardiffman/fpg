@@ -743,6 +743,29 @@ Expr* E(int p) {
 	return t;
 }
 Expr* P(void) {
+#if 1
+	Expr* t; Expr* hd; Expr* tl;
+	switch (token.type) {
+	// Prefix operators
+	case T_SUB: next(); t = E(2); return new ExprNeg(t);
+	case T_NULL: next(); t = E(2); return new ExprNull(t);
+	case T_HD: next(); t=E(2); return new ExprHd(t);
+	case T_TL: next(); t=E(2); return new ExprTl(t);
+	// Combinator-like forms
+	case T_CONS: next(); hd=P(); tl=P(); return new ExprCons(hd,tl);
+	case T_IF: return parse_conditional();
+	// Parenthesized expr
+	case T_LPAREN: next(); t=E(0); assert(token.type==T_RPAREN); next(); return t;
+	// Everything else
+	default:
+		if (atom(token)) {
+			t = mkleaf(token); next(); return t;
+		} else {
+			cout << "Unexpected token " << token_to_string(token); exit(1);
+		}
+		break;
+	}
+#else
 	if (token.type == T_SUB) { next(); Expr* t = E(2); return mkop(T_SUB, t); }
 	else if (token.type == T_NULL) { next(); Expr* t = E(2); return new ExprNull(t); }
 	else if (token.type == T_HD) { next(); Expr* t = E(2); return new ExprHd(t); }
@@ -755,9 +778,16 @@ Expr* P(void) {
 		if (token.type == T_IF) {
 			return parse_conditional();
 		}
+		if (token.type == T_CONS) {
+			next();
+			Expr* hd = P();
+			Expr* tl = P();
+			return new ExprCons(hd,tl);
+		}
 		Expr* t = mkleaf(token); next(); return t;
 	}
 	else { cout << "Unexpected token " << token_to_string(token); exit(1); }
+#endif
 }
 Expr* parse_conditional(){
 	next(); // advance past 'if'
