@@ -1140,10 +1140,13 @@ string instructionToString(const Instruction& ins) {
 	case JFALSE:
 	case JMP:
 	case PUSHBASIC: rv += " " + ::to_string(ins.dest); break;
-	case PUSHINT: rv += " " + ::to_string(ins.i); break;
+	case PUSHBOOL: rv += " " + ::to_string(ins.b); break;
+	case PUSHINT: rv += " " + ::to_string(ins.dest); break;
 	case PUSHFUN: rv += " " + ins.node->to_string(); break;
+	case ALLOC:
 	case PUSH:
 	case UPDATE:
+	case SLIDE:
 	case RET:
 		rv += " " + ::to_string(ins.n); break;
 	case UNWIND:
