@@ -1108,8 +1108,10 @@ struct Instruction {
 	Instruction():ins(STOP),dest(0),node(nullptr) {}
 	Instruction(InstructionType ins) : ins(ins),dest(0),node(nullptr) {}
 	Instruction(InstructionType ins, bool b) : ins(ins),dest(0),node(nullptr),b(b) {}
+	Instruction(InstructionType ins, unsigned n) : ins(ins),dest(0),node(nullptr),n(n) {}
 	Instruction(InstructionType ins, size_t n) : ins(ins),dest(0),node(nullptr),n(n) {}
-	Instruction(InstructionType ins, ptrdiff_t c) : ins(ins),dest(c),node(nullptr) {}
+	Instruction(InstructionType ins, ptrdiff_t dest) : ins(ins),dest(dest),node(nullptr) {}
+	Instruction(InstructionType ins, NFun* node) : ins(ins),dest(0),node(node) {}
 	InstructionType ins;
 	ptrdiff_t dest;
 	NFun* node;
@@ -1624,14 +1626,14 @@ struct CompileCVisitor : public ExprVisitor {
 	CodeArray& code;
 	Env& env;
 	void visitExprNum(ExprNum* eint) {
-		code.add(PushIntInstruction(eint->value));
+		code.add(Instruction(PUSHINT,eint->value));
 	}
 	void visitExprVar(ExprVar* evar) {
 		auto pm = env.find(evar->var);
 		if (pm != env.end()) {
 			switch (pm->second.mode.mode) {
-			case AddressMode::Local: code.add(PushInstruction(pm->second.mode.localIndex)); break;
-			case AddressMode::Global: code.add(PushFunInstruction(pm->second.mode.node)); break;
+			case AddressMode::Local: code.add(Instruction(PUSH,pm->second.mode.localIndex)); break;
+			case AddressMode::Global: code.add(Instruction(PUSHFUN,pm->second.mode.node)); break;
 			}
 			cout << __PRETTY_FUNCTION__ << " compileC VAR ended at " << code.code.size() << endl;
 			return;
@@ -1653,7 +1655,7 @@ struct CompileCVisitor : public ExprVisitor {
 		Env shift = envShift(env, shiftCount);
 		compileC(code,eapp->fun,shift);
 		for (unsigned a=0; a<eapp->args.size(); ++a)
-			code.add(MkapInstruction());
+			code.add(Instruction(MKAP));
 		cout << __PRETTY_FUNCTION__ << "Mkaps for " << eapp->to_string(0) << ", " << eapp->args.size() << "args, ended at " << code.code.size() << endl;
 #else
 		compileC(code,eapp->arg,env);
@@ -1817,14 +1819,14 @@ struct CompileEVisitor : public ExprVisitor {
 	CodeArray& code;
 	Env& env;
 	void visitExprNum(ExprNum* eint) {
-		code.add(PushIntInstruction(eint->value));
+		code.add(Instruction(PUSHINT,eint->value));
 	}
 	void visitExprVar(ExprVar* evar) {
 		auto pm = env.find(evar->var);
 		if (pm != env.end()) {
 			switch (pm->second.mode.mode) {
-			case AddressMode::Local: code.add(PushInstruction(pm->second.mode.localIndex)); break;
-			case AddressMode::Global: code.add(PushFunInstruction(pm->second.mode.node)); break;
+			case AddressMode::Local: code.add(Instruction(PUSH,pm->second.mode.localIndex)); code.add(Instruction(EVAL)); break;
+			case AddressMode::Global: code.add(Instruction(PUSHFUN,pm->second.mode.node)); break;
 			}
 			return;
 		}
@@ -1914,7 +1916,7 @@ void compileR(CodeArray& code, Expr* expr, size_t args, Env& env) {
 	code.add(UnwindInstruction());
 #else
 	compileE(code,expr,env);
-	code.add(UpdateInstruction(args+1));
+	code.add(Instruction(UPDATE,args+1));
 	code.add(Instruction(RET,args));
 #endif
 }
@@ -1981,9 +1983,8 @@ int main(int argc, char** argv)
     pprint_defs(0, defs);
     Env env;
     CodeArray code;
-    Instruction instr; instr.ins = STOP;
-    code.add(instr);
-    code.add(UnwindInstruction());
+    code.add(Instruction(STOP));
+    code.add(Instruction(UNWIND));
 
     for (auto def : defs) {
     	EnvItem item;
@@ -1999,7 +2000,7 @@ int main(int argc, char** argv)
 		return 1;
     }
     ptrdiff_t pc = code.code.size();
-    code.add(PushFunInstruction(mode.node));
+    code.add(Instruction(PUSHFUN,mode.node));
     //code.add(UpdateInstruction(0));
     //code.add(PopInstruction(0));
     // maybe the above are not good for zero parameters?
@@ -2018,27 +2019,27 @@ int main(int argc, char** argv)
 		cout << i <<": " << instructionToString(code.code[i]) << endl;
     }
     try {
-    while (code.code[pc].ins != STOP) {
-    	step(code, pc);
-    	string id;
-    	for (auto e : env) {
-    		if (e.second.mode.node->address == pc) {
-    			id = e.first;
-    			break;
-    		}
-    	}
-    	if (id.size()) cout << id << ":" << endl;
-		cout << pc <<": " << instructionToString(&code.code[pc]) << endl;
-    }
+		while (code.code[pc].ins != STOP) {
+			step(code, pc);
+			string id;
+			for (auto e : env) {
+				if (e.second.mode.node->address == pc) {
+					id = e.first;
+					break;
+				}
+			}
+			if (id.size()) cout << id << ":" << endl;
+			cout << pc <<": " << instructionToString(code.code[pc]) << endl;
+		}
     }
     catch (int e) {
-    	cout << pc << ": " << instructionToString(&code.code[pc-1]) << " threw " << e << endl;
+		cout << pc << ": " << instructionToString(code.code[pc-1]) << " threw " << e << endl;
     }
     catch (const char* e) {
-    	cout << pc-1 << ": " << instructionToString(&code.code[pc-1]) << " threw " << e << endl;
+		cout << pc-1 << ": " << instructionToString(code.code[pc-1]) << " threw " << e << endl;
     }
     catch (const string& e) {
-    	cout << pc-1 << ": " << instructionToString(&code.code[pc-1]) << " threw " << e << endl;
+		cout << pc-1 << ": " << instructionToString(code.code[pc-1]) << " threw " << e << endl;
     }
 
 }
