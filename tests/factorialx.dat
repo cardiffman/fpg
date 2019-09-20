@@ -1,0 +1,3 @@
+factorial n = if (n < 2) 1 (n * (factorial (n - 1)));
+wrap x = factorial (x-1);
+main = wrap 5
