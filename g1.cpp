@@ -1043,6 +1043,9 @@ struct NInt;
 struct NBool;
 struct NAp;
 struct NInd;
+struct NCons;
+struct NNil;
+struct NHole;
 struct NodeVisitor {
 	virtual ~NodeVisitor() {}
 	virtual void visitNFun(NFun* n) = 0;
@@ -1050,11 +1053,19 @@ struct NodeVisitor {
 	virtual void visitNBool(NBool* n) = 0;
 	virtual void visitNAp(NAp* n) = 0;
 	virtual void visitNInd(NInd* n) = 0;
+	virtual void visitNCons(NCons* n) = 0;
+	virtual void visitNNil(NNil* n) = 0;
+	virtual void visitNHole(NHole* n) = 0;
 };
 struct Node {
 	virtual ~Node() {}
 	virtual string to_string() const = 0;
 	virtual void visit(NodeVisitor* v) = 0;
+};
+struct NHole : public Node {
+	NHole() {}
+	string to_string() const { return "NHole"; }
+	void visit(NodeVisitor* v) { v->visitNHole(this); }
 };
 struct NFun : public Node {
 	NFun(ptrdiff_t address, unsigned args) : address(address), args(args) {}
@@ -1099,6 +1110,18 @@ struct NInd : public Node {
 	}
 	void visit(NodeVisitor* v) { v->visitNInd(this); }
 	Node* a;
+};
+struct NCons: public Node {
+	NCons(Node* hd, Node* tl) : hd(hd), tl(tl) {}
+	string to_string() const {
+		return "("+hd->to_string()+":" + tl->to_string() +")";
+	}
+	void visit(NodeVisitor* v) { v->visitNCons(this); }
+	Node* hd;
+	Node* tl;
+};
+struct NNil: public Node {
+	NNil() {}
 };
 struct Instruction {
 	Instruction():ins(STOP),dest(0),node(nullptr) {}
@@ -1363,8 +1386,50 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		showStack("Stack during ap unwind");
 		//pc--; // instead of backing up, we reiterate directly.
 	}
+	void visitNCons(NCons*) { throw "don't unwind Cons"; }
+	void visitNNil(NNil*) { throw "don't unwind Nil"; }
+	void visitNHole(NHole*) { throw "Don't unwind a hole";}
 };
-// Unwind will cause a jump if the top node is an NGlobal.
+struct PrintNodeVisitor : public NodeVisitor {
+	PrintNodeVisitor() : done(false) {}
+	bool done;
+	void visitNInt(NInt* n) {
+		cout << n->to_string();
+		done = true;
+	}
+	void visitNBool(NBool* n) {
+		cout << n->to_string();
+		done = true;
+	}
+	void visitNCons(NCons*) {
+#if 0
+		nodeStack.push_front(n->tl);
+		nodeStack.push_front(n->hd);
+		stepEval();
+		stepPrint();
+		stepEval();
+		stepPrint();
+		done = true;
+#endif
+		throw "don't print Cons yet";
+	}
+	void visitNNil(NNil*) { /*Nil doesn't print anything*/ done=true;}
+	void visitNInd(NInd* iitop) {
+		Node* replacement = iitop->a;
+		nodeStack.front() = replacement;
+		showStack("Stack NInd print");
+	}
+	void visitNFun(NFun*) {
+		throw "Don't print a fun";
+	}
+	void visitNAp(NAp*) {
+		throw "Don't print an apply";
+	}
+	void visitNHole(NHole*) {
+		throw "Don't print a hole";
+	}
+};
+// Unwind will cause a jump if the top node is an NFun.
 void stepUnwind(ptrdiff_t& pc) {
 	showStack("Stack before unwind");
 	UnwindNodeVisitor visitor(pc);
@@ -1374,6 +1439,14 @@ void stepUnwind(ptrdiff_t& pc) {
 		top->visit(&visitor);
 	}
 	showStack("Stack after unwind");
+}
+void stepPrint(const Instruction& ins, ptrdiff_t& pc) {
+	showStack("Stack before print");
+	PrintNodeVisitor visitor;
+	while (!visitor.done) {
+		nodeStack.front()->visit(&visitor);
+	}
+	showStack("Stack after print");
 }
 void stepPushBasic(const Instruction& ins) {
 	showValues("Stack before pushbasic");
@@ -1506,7 +1579,6 @@ bool step(CodeArray& code, ptrdiff_t& pc) {
 	case NEG:
 	case NOT:
 	case NULLinst:
-	case PRINT:
 	case PUSHBOOL:
 	case PUSHNIL:
 	case TL: throw "Unknown instruction in step";
@@ -1519,6 +1591,7 @@ bool step(CodeArray& code, ptrdiff_t& pc) {
 	case LT: stepBinop(instr); break;
 	case MKAP: stepMkAp(); break;
 	case MKINT: stepMkInt(); break;
+	case PRINT: stepPrint(instr,pc); break;
 	case PUSH: stepPush(instr.n); break;
 	case PUSHBASIC: stepPushBasic(instr); break;
 	case PUSHFUN: stepPushFun(instr.node); break;
@@ -2003,7 +2076,8 @@ int main(int argc, char** argv)
     //code.add(UpdateInstruction(0));
     //code.add(PopInstruction(0));
     // maybe the above are not good for zero parameters?
-    code.add(UnwindInstruction());
+    code.add(Instruction(UNWIND));
+    code.add(Instruction(PRINT));
     for (unsigned i=0; i<code.code.size(); ++i) {
     	string id;
     	for (auto e : env) {
@@ -2014,7 +2088,7 @@ int main(int argc, char** argv)
     	}
     	if (id.size()) cout << id << ":" << endl;
     	if (i == pc) cout << "PC:" << endl;
-		cout << i <<": " << instructionToString(&code.code[i]) << endl;
+		cout << i <<": " << instructionToString(code.code[i]) << endl;
     }
     try {
     while (code.code[pc].ins != STOP) {
