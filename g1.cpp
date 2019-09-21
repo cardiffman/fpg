@@ -1655,13 +1655,13 @@ bool find_mode(const Env& env, const string& var, AddressMode* mode) {
 	return false;
 }
 
-void compileC(CodeArray& code, Expr* expr, Env& env);
+void compileC(CodeArray& code, Expr* expr, const Env& env);
 void compileE(CodeArray& code, Expr* expr, Env& env);
 void compileB(CodeArray& code, Expr* expr, Env& env);
 struct CompileCVisitor : public ExprVisitor {
-	CompileCVisitor(CodeArray& code, Env& env) : code(code), env(env) {}
+	CompileCVisitor(CodeArray& code, const Env& env) : code(code), env(env) {}
 	CodeArray& code;
-	Env& env;
+	const Env& env;
 	void visitExprNum(ExprNum* eint) {
 		code.add(Instruction(PUSHINT,eint->value));
 	}
@@ -1694,6 +1694,25 @@ struct CompileCVisitor : public ExprVisitor {
 		for (unsigned a=0; a<eapp->args.size(); ++a)
 			code.add(Instruction(MKAP));
 		cout << __PRETTY_FUNCTION__ << "Mkaps for " << eapp->to_string(0) << ", " << eapp->args.size() << "args, ended at " << code.code.size() << endl;
+		/*
+F[f x1 ... xm = e] = E[e] r (m+1); UPDATE (m+1); RET m;
+  r = [x1=m+1, x2=m, ..., xm = 2]
+
+If 1 parameter:
+F[f x1 = e] = E[e] r 2; UPDATE 2; RET 1;
+  r = [x1=2]
+
+
+If 2 parameters:
+F[f x1 x2 = e] = E[e] r 3; UPDATE 3; RET 2;
+  r = [x1=3, x2=2]
+
+When e is adding x1 and x2
+... C[add x1 x2] =>
+    C[x1] [x1=3 x2=2] 3; C[x2] [x1=3 x2=2] 3; add; update 3; ret 2;
+    C[x1] [x1=3 x2=2] 3; C[x2] [x1=3 x2=2] 3; add; update 3; ret 2;
+    PUSH (3 - 3);
+		 */
 #else
 		compileC(code,eapp->arg,env);
 		Env shift = envShift(env, 1);
@@ -1703,7 +1722,7 @@ struct CompileCVisitor : public ExprVisitor {
 #endif
 		return;
 	}
-	void visitExprLet(ExprLet*) {}
+	void visitExprLet(ExprLet*) { throw __PRETTY_FUNCTION__; }
 	void visitExprBool(ExprBool* e) {
 		code.add(Instruction(PUSHBOOL,e->value));
 	}
@@ -1721,11 +1740,16 @@ struct CompileCVisitor : public ExprVisitor {
 		compileC(code,e->tl, shift);
 		code.add(Instruction(CONS));
 	}
-	void visitExprHd(ExprHd*) {}
-	void visitExprTl(ExprTl*) {}
-	void visitExprNull(ExprNull*) {}
-	void visitExprOper(ExprOper*) {}
-	void visitExprAdd(ExprAdd*) {}
+	void visitExprHd(ExprHd*) { throw __PRETTY_FUNCTION__; }
+	void visitExprTl(ExprTl*) { throw __PRETTY_FUNCTION__; }
+	void visitExprNull(ExprNull*) { throw __PRETTY_FUNCTION__; }
+	void visitExprOper(ExprOper*) { throw __PRETTY_FUNCTION__; }
+	void visitExprAdd(ExprAdd* e) {
+		auto e2 = new ExprApp(new ExprVar("add"),e->left);
+		e2->args.push_back(e->right);
+		//e2->visit(this);
+		compileC(code, e2, envShift(env,1));
+	}
 	void visitExprSub(ExprSub* e) {
 		// desugar in this case:
 		auto e2 = new ExprApp(new ExprVar("sub"),e->left);
@@ -1743,20 +1767,20 @@ struct CompileCVisitor : public ExprVisitor {
 		cout << __PRETTY_FUNCTION__ << " Desugar: " << e->to_string(0) << " to " << e2->to_string(3) << endl;
 		cout << __PRETTY_FUNCTION__ << " Desugar: compileC code ended at " << code.code.size() << endl;
 	}
-	void visitExprDiv(ExprDiv*) {}
-	void visitExprMod(ExprMod*) {}
-	void visitExprEq(ExprEq*) {}
-	void visitExprNe(ExprNe*) {}
+	void visitExprDiv(ExprDiv*) { throw __PRETTY_FUNCTION__; }
+	void visitExprMod(ExprMod*) { throw __PRETTY_FUNCTION__; }
+	void visitExprEq(ExprEq*) { throw __PRETTY_FUNCTION__; }
+	void visitExprNe(ExprNe*) { throw __PRETTY_FUNCTION__; }
 	void visitExprLt(ExprLt* e) {
 		auto e2 = new ExprApp(new ExprVar("__lt"),e->left);
 		e2->args.push_back(e->right);
 		e2->visit(this);
 		cout << __PRETTY_FUNCTION__ << " Desugar: " << e->to_string(0) << " to " << e2->to_string(3) << endl;
 	}
-	void visitExprGt(ExprGt*) {}
-	void visitExprLe(ExprLe*) {}
-	void visitExprGe(ExprGe*) {}
-	void visitExprNeg(ExprNeg*) {}
+	void visitExprGt(ExprGt*) { throw __PRETTY_FUNCTION__; }
+	void visitExprLe(ExprLe*) { throw __PRETTY_FUNCTION__; }
+	void visitExprGe(ExprGe*) { throw __PRETTY_FUNCTION__; }
+	void visitExprNeg(ExprNeg*) { throw __PRETTY_FUNCTION__; }
 };
 struct CompileBVisitor : public ExprVisitor {
 	CompileBVisitor(CodeArray& code, Env& env) : code(code), env(env) {}
@@ -1934,7 +1958,7 @@ struct CompileEVisitor : public ExprVisitor {
 	void visitExprGe(ExprGe*) {}
 	void visitExprNeg(ExprNeg*) {}
 };
-void compileC(CodeArray& code, Expr* expr, Env& env) {
+void compileC(CodeArray& code, Expr* expr, const Env& env) {
 	CompileCVisitor visitor(code, env);
 	expr->visit(&visitor);
 }
@@ -2023,12 +2047,26 @@ int main(int argc, char** argv)
     code.add(Instruction(STOP));
     code.add(Instruction(UNWIND));
 
-    for (auto def : defs) {
-    	EnvItem item;
-		item.args = def.args.size();
-		item.mode = AddressMode(new NFun(code.code.size(), item.args));
-		env[def.name] = item;
-		compileSc(code, def, env);
+    try {
+		for (auto def : defs) {
+			EnvItem item;
+			item.args = def.args.size();
+			item.mode = AddressMode(new NFun(code.code.size(), item.args));
+			env[def.name] = item;
+			compileSc(code, def, env);
+		}
+    }
+    catch (int e) {
+		cout << " threw " << e << endl;
+		return 1;
+    }
+    catch (const char* e) {
+		cout << " threw " << e << endl;
+		return 1;
+    }
+    catch (const string& e) {
+		cout << " threw " << e << endl;
+		return 1;
     }
     AddressMode mode;
     auto m = find_mode(env, "main", &mode);
