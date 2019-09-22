@@ -1649,13 +1649,20 @@ bool find_mode(const Env& env, const string& var, AddressMode* mode) {
 	return false;
 }
 
-void compileC(CodeArray& code, Expr* expr, const Env& env);
-void compileE(CodeArray& code, Expr* expr, Env& env);
-void compileB(CodeArray& code, Expr* expr, Env& env);
+//F[f x1 ... xm = e] = E[e] r (m+1); UPDATE (m+1); RET m;
+//  r = [x1=m+1, x2=m, ..., xm = 2]
+
+unsigned r(unsigned i, unsigned m) {
+	return m+1-i;
+}
+void compileC(CodeArray& code, Expr* expr, const Env& env, unsigned args);
+void compileE(CodeArray& code, Expr* expr, Env& env, unsigned args);
+void compileB(CodeArray& code, Expr* expr, Env& env, unsigned args);
 struct CompileCVisitor : public ExprVisitor {
-	CompileCVisitor(CodeArray& code, const Env& env) : code(code), env(env) {}
+	CompileCVisitor(CodeArray& code, const Env& env, unsigned args) : code(code), env(env), args(args) {}
 	CodeArray& code;
 	const Env& env;
+	unsigned args;
 	void visitExprNum(ExprNum* eint) {
 		code.add(Instruction(PUSHINT,eint->value));
 	}
@@ -1672,6 +1679,19 @@ struct CompileCVisitor : public ExprVisitor {
 		cout << __PRETTY_FUNCTION__ << " Can't find " << evar->var << " in "; pprint_env(env);
 	}
 	void visitExprApp(ExprApp* eapp) {
+		/*
+		 * C[e1 e2] r n = C[e1] r n; C[e2] r n+1; MKAP
+		 */
+		int shiftCount = 0;
+		compileC(code, eapp->fun, env, args);
+		for (auto pArg = eapp->args.rbegin(); pArg!=eapp->args.rend(); ++pArg) {
+			++shiftCount;
+			compileC(code, *pArg, env, args+shiftCount);
+		}
+		for (unsigned a=0; a<eapp->args.size(); ++a)
+			code.add(Instruction(MKAP));
+		return;
+#if 0
 #ifdef BIG_LIST_AP
 		int shiftCount = 0;
 		for (auto pArg = eapp->args.rbegin(); pArg!=eapp->args.rend(); ++pArg) {
@@ -1714,6 +1734,7 @@ When e is adding x1 and x2
 		compileC(code,eapp->fun,shift);
 		code.add(MkapInstruction());
 #endif
+#endif // don't compile any old code
 		return;
 	}
 	void visitExprLet(ExprLet*) { throw __PRETTY_FUNCTION__; }
