@@ -106,7 +106,6 @@ struct ExprCons;
 struct ExprHd;
 struct ExprTl;
 struct ExprNull;
-struct ExprOper;
 struct ExprAdd;
 struct ExprSub;
 struct ExprMul;
@@ -134,7 +133,6 @@ struct ExprVisitor {
 	virtual void visitExprHd(ExprHd* e) = 0;
 	virtual void visitExprTl(ExprTl* e) = 0;
 	virtual void visitExprNull(ExprNull* e) = 0;
-	virtual void visitExprOper(ExprOper* e) = 0;
 	virtual void visitExprAdd(ExprAdd* e) = 0;
 	virtual void visitExprSub(ExprSub* e) = 0;
 	virtual void visitExprMul(ExprMul* e) = 0;
@@ -577,8 +575,6 @@ Expr* mkop(Token t, Expr* left, Expr* right) {
 	default:
 		throw "unexpected binary operator token";
 	}
-	//ExprOper* r = new ExprOper(t);
-	//return r;
 }
 Expr* mkop(Token t, Expr* subj) {
 	switch (t) {
@@ -586,8 +582,6 @@ Expr* mkop(Token t, Expr* subj) {
 	default:
 		throw "unexpected unary operator token";
 	}
-	//ExprOper* r = new ExprOper(t);
-	//return r;
 }
 Expr* mkapp(Expr* fun_, Expr* arg) {
 #ifdef BIG_LIST_AP
@@ -1743,7 +1737,6 @@ When e is adding x1 and x2
 	void visitExprHd(ExprHd*) { throw __PRETTY_FUNCTION__; }
 	void visitExprTl(ExprTl*) { throw __PRETTY_FUNCTION__; }
 	void visitExprNull(ExprNull*) { throw __PRETTY_FUNCTION__; }
-	void visitExprOper(ExprOper*) { throw __PRETTY_FUNCTION__; }
 	void visitExprAdd(ExprAdd* e) {
 		auto e2 = new ExprApp(new ExprVar("add"),e->left);
 		e2->args.push_back(e->right);
@@ -1832,7 +1825,6 @@ struct CompileBVisitor : public ExprVisitor {
 		compileE(code, e->subject, env);
 		code.add(Instruction(NULLinst));
 	}
-	void visitExprOper(ExprOper*) {}
 	void visitExprAdd(ExprAdd* e) {
 		cout << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
 		cout << __PRETTY_FUNCTION__ << " code begins at " << code.code.size() << endl;
@@ -1932,7 +1924,6 @@ struct CompileEVisitor : public ExprVisitor {
 		code.add(Instruction(NULLinst));
 		code.add(Instruction(MKBOOL));
 	}
-	void visitExprOper(ExprOper*) {}
 	void visitExprAdd(ExprAdd* e) {
 		compileB(code, e, env);
 		code.add(Instruction(MKINT));
