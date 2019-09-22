@@ -1690,52 +1690,6 @@ struct CompileCVisitor : public ExprVisitor {
 		}
 		for (unsigned a=0; a<eapp->args.size(); ++a)
 			code.add(Instruction(MKAP));
-		return;
-#if 0
-#ifdef BIG_LIST_AP
-		int shiftCount = 0;
-		for (auto pArg = eapp->args.rbegin(); pArg!=eapp->args.rend(); ++pArg) {
-			if (shiftCount == 0) {
-				compileC(code,*pArg,env);
-			} else {
-				Env shift = envShift(env, shiftCount);
-				compileC(code,*pArg,shift);
-			}
-			shiftCount++;
-		}
-		Env shift = envShift(env, shiftCount);
-		compileC(code,eapp->fun,shift);
-		for (unsigned a=0; a<eapp->args.size(); ++a)
-			code.add(Instruction(MKAP));
-		cout << __PRETTY_FUNCTION__ << "Mkaps for " << eapp->to_string(0) << ", " << eapp->args.size() << "args, ended at " << code.code.size() << endl;
-		/*
-F[f x1 ... xm = e] = E[e] r (m+1); UPDATE (m+1); RET m;
-  r = [x1=m+1, x2=m, ..., xm = 2]
-
-If 1 parameter:
-F[f x1 = e] = E[e] r 2; UPDATE 2; RET 1;
-  r = [x1=2]
-
-
-If 2 parameters:
-F[f x1 x2 = e] = E[e] r 3; UPDATE 3; RET 2;
-  r = [x1=3, x2=2]
-
-When e is adding x1 and x2
-... C[add x1 x2] =>
-    C[x1] [x1=3 x2=2] 3; C[x2] [x1=3 x2=2] 3; add; update 3; ret 2;
-    C[x1] [x1=3 x2=2] 3; C[x2] [x1=3 x2=2] 3; add; update 3; ret 2;
-    PUSH (3 - 3);
-		 */
-#else
-		compileC(code,eapp->arg,env);
-		Env shift = envShift(env, 1);
-		cout << "Providing modified arg environment" << endl; pprint_env(shift);
-		compileC(code,eapp->fun,shift);
-		code.add(MkapInstruction());
-#endif
-#endif // don't compile any old code
-		return;
 	}
 	void visitExprLet(ExprLet*) { throw __PRETTY_FUNCTION__; }
 	void visitExprBool(ExprBool* e) {
