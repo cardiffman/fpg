@@ -1407,6 +1407,8 @@ struct UnwindNodeVisitor : public NodeVisitor {
 	void visitNNil(NNil*) { throw "don't unwind Nil"; }
 	void visitNHole(NHole*) { throw "Don't unwind a hole";}
 };
+void stepEval(/*const Instruction& instr,*/ ptrdiff_t& pc);
+void stepPrint(const Instruction& ins, ptrdiff_t& pc);
 struct PrintNodeVisitor : public NodeVisitor {
 	PrintNodeVisitor() : done(false) {}
 	bool done;
