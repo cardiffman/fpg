@@ -146,6 +146,7 @@ struct ExprVisitor {
 	virtual void visitExprLe(ExprLe* e) = 0;
 	virtual void visitExprGe(ExprGe* e) = 0;
 	virtual void visitExprNeg(ExprNeg* e) = 0;
+	virtual void visitExprNot(ExprNot* e) = 0;
 };
 
 struct Expr {
@@ -315,6 +316,12 @@ struct ExprNeg : public Expr {
 	void visit(ExprVisitor* v) { v->visitExprNeg(this); }
 	Expr* subj;
 };
+struct ExprNot : public Expr {
+	ExprNot(Expr* subj) : subj(subj) {}
+	string to_string(int c) const { return "NOT "+subj->to_string(c); }
+	void visit(ExprVisitor* v) { v->visitExprNot(this); }
+	Expr* subj;
+};
 struct ExprIf : public Expr {
 	ExprIf(Expr* cond, Expr* trueExpr, Expr* falseExpr)
 	: cond(cond), trueExpr(trueExpr), falseExpr(falseExpr)
@@ -393,6 +400,7 @@ enum Token {
 	T_MUL,
 	T_DIV,
 	T_MOD,
+	T_NOT,
 	T_LET,
 	T_IN,
 	T_IF,
@@ -513,6 +521,7 @@ void next() {
 		case '*': token.type = T_MUL; break;
 		case '/': token.type = T_DIV; break;
 		case '%': token.type = T_MOD; break;
+		case '!': token.type = T_NOT; break;
 		}
 		break;
 	case 2: // 2-character sequence
@@ -545,6 +554,7 @@ string token_to_string(const tkn& token) {
 	case T_MOD: rv = "T_MOD"; break;
 	case T_IN: rv = "T_IN"; break;
 	case T_LET: rv = "T_LET"; break;
+	case T_NOT: rv = "T_NOT"; break;
 	default: rv = to_string((int)token.type); break;
 	}
 	return rv;
@@ -727,6 +737,7 @@ Expr* E(int p) {
 		} else {
 			switch (b){
 			case T_SUB: t=new ExprNeg(t); break;
+			case T_NOT: t=new ExprNot(t); break;
 			default:
 				throw "Unknown unary operator";
 			}
@@ -743,6 +754,7 @@ Expr* P(void) {
 	switch (token.type) {
 	// Prefix operators
 	case T_SUB: next(); t = E(2); return new ExprNeg(t);
+	case T_NOT: next(); t = E(2); return new ExprNot(t);
 	case T_NULL: next(); t = E(2); return new ExprNull(t);
 	case T_HD: next(); t=E(2); return new ExprHd(t);
 	case T_TL: next(); t=E(2); return new ExprTl(t);
@@ -969,12 +981,12 @@ enum InstructionType {
 11.<0,RET m.c, n I .. nm.n.s, ,v, G[n=AP nln2] , E, D> =>
 <O, UNWIND. i)I n.s, v, G[n=AP n I n2] , E, D>, similarly for n = FUN f.
 12.<O,PUSHINT i.c, s, v, G, E, D> => <o, c, n'.s, v, G[n'=INT i], E, D>
-13.<o,PUSHB00L b.c, s, v, G, E, D> => <o, c, n'.s, v, G[n'=B00L b], E, D>
+13.<o,PUSHBOOL b.c, s, v, G, E, D> => <o, c, n'.s, v, G[n'=BOOL b], E, D>
 14.<o,PUSHNIL.c, s, v, G, E, D> => <o, c, n'.s, v, GIn'=NIL], E, D>
 15.<o,PUSHFUN f.c, s, v, G, E, D> => <o, c, n'.s, v, G[n'=FUN f], E, D>
 16.<o,PUSH m.c, n O ..... nm.S, v, G, E, D> => <o, c, nm.n 0 .... nm.S, v, G, E, D>
 17.<o,MKINT.c, s, i.v, G, E, D> => <o, c, n'.s, v, G[n'=INT i], E, D>
-18.<o,MKB00L.c, s, b.v, G, E, D> => <o, c, n'.s, v, G[n'=B00L b], E, D>
+18.<o,MKBOOL.c, s, b.v, G, E, D> => <o, c, n'.s, v, G[n'=BOOL b], E, D>
 19.<o,MKAP.c, nl.n2.s , G, E, D> => <o, c, n'.s, v, G[n'=AP n2nl] , E, D>
 20.<o,CONS.c, nl.n2.s , G, E, D> => <o, c, n'.s, v, G[n'=CONS n2nl] , E, D>
 21.<o,ALLOC m.c, s, v, G, E, D> => <o, c, n 1'...n '.s, v, Gin I '= HOLE, ... n ': HOLE], E, D>
@@ -1018,7 +1030,8 @@ const char* insNames[] = {
 	"LT",
 	"MKAP",
 	"MKBOOL",
-		"MKINT",
+	"MKINT",
+	"MOD",
 	"MUL",
 	"NE",
 	"NEG",
@@ -1027,7 +1040,7 @@ const char* insNames[] = {
 	"PRINT",
 	"PUSH",
 	"PUSHBASIC",
-	"PUSHB00L",
+	"PUSHBOOL",
 	"PUSHFUN",
 	"PUSHINT",
 	"PUSHNIL",
@@ -1118,6 +1131,10 @@ struct NCons: public Node {
 };
 struct NNil: public Node {
 	NNil() {}
+	string to_string() const {
+		return "nil";
+	}
+	void visit(NodeVisitor* v) { v->visitNNil(this); }
 };
 struct Instruction {
 	Instruction():ins(STOP),dest(0),node(nullptr) {}
@@ -1232,10 +1249,15 @@ void stepPushInt(ptrdiff_t i) {
 	nodeStack.push_front(new NInt(i));
 	showStack("Stack after pushInt");
 }
+void stepPushNil() {
+	showStack("Stack before pushNil");
+	nodeStack.push_front(new NNil());
+	showStack("Stack after pushNil");
+}
 void stepMkAp() {
 	showStack("Stack before mkap");
-	Node* a1 = nodeStack.front(); nodeStack.pop_front();
 	Node* a2 = nodeStack.front(); nodeStack.pop_front();
+	Node* a1 = nodeStack.front(); nodeStack.pop_front();
 	nodeStack.push_front(new NAp(a1, a2));
 	showStack("Stack after mkap");
 }
@@ -1297,6 +1319,41 @@ void stepUpdate(unsigned n) {
 	*p = tos;//new NInd(tos);
 	showStack("Stack after update");
 }
+list<Node*> tl(list<Node*> x) {
+	auto r = x;
+	r.pop_front();
+	return r;
+}
+list<Node*> take(unsigned t, list<Node*> x) {
+	list<Node*> r;
+	list<Node*>::const_iterator px = x.begin();
+	for (unsigned i=0; i<t; i++)
+	{
+		r.push_back(*px++);
+	}
+	return r;
+}
+list<Node*> drop(unsigned d, list<Node*> x) {
+	list<Node*> r = x;
+	auto px = next(r.begin(),d);
+	r.erase(r.begin(), px);
+	return r;
+}
+list<Node*> concat(list<Node*> a, list<Node*> b) {
+	list<Node*> r = a;
+	r.insert(r.end(), b.begin(), b.end());
+	return r;
+}
+list<Node*> rearrange(unsigned n, list<Node*> as) {
+	auto asp = mapf(tl(as), [](Node* el) {
+		auto ap=dynamic_cast<NAp*>(el);
+		if (ap) {
+			return ap->a2;
+		}
+		return el;
+	});
+	return concat(take(n, asp), drop(n, as));
+}
 struct UnwindNodeVisitor : public NodeVisitor {
 	UnwindNodeVisitor(ptrdiff_t& pc) : pc(pc),done(false) {}
 	ptrdiff_t& pc;
@@ -1308,41 +1365,6 @@ struct UnwindNodeVisitor : public NodeVisitor {
 	void visitNBool(NBool*) {
 		pc = 0;
 		done = true;
-	}
-	list<Node*> tl(list<Node*> x) {
-		auto r = x;
-		r.pop_front();
-		return r;
-	}
-	list<Node*> take(unsigned t, list<Node*> x) {
-		list<Node*> r;
-		list<Node*>::const_iterator px = x.begin();
-		for (unsigned i=0; i<t; i++)
-		{
-			r.push_back(*px++);
-		}
-		return r;
-	}
-	list<Node*> drop(unsigned d, list<Node*> x) {
-		list<Node*> r = x;
-		auto px = next(r.begin(),d);
-		r.erase(r.begin(), px);
-		return r;
-	}
-	list<Node*> concat(list<Node*> a, list<Node*> b) {
-		list<Node*> r = a;
-		r.insert(r.end(), b.begin(), b.end());
-		return r;
-	}
-	list<Node*> rearrange(unsigned n, list<Node*> as) {
-		auto asp = mapf(tl(as), [](Node* el) {
-			auto ap=dynamic_cast<NAp*>(el);
-			if (ap) {
-				return ap->a2;
-			}
-			return el;
-		});
-		return concat(take(n, asp), drop(n, as));
 	}
 	void visitNFun(NFun* gtop) {
 		if (nodeStack.size() < gtop->args) {
@@ -1541,40 +1563,48 @@ void stepJFalse(const Instruction& ins, ptrdiff_t& pc) {
 void stepJmp(const Instruction& ins, ptrdiff_t& pc) {
 	pc = ins.dest;
 }
+void stepCons(const Instruction& ins) {
+	showStack("Before CONS");
+	auto tl = nodeStack.front(); nodeStack.pop_front();
+	auto hd = nodeStack.front(); nodeStack.pop_front();
+	nodeStack.push_front(new NCons(hd, tl));
+	showStack("After CONS");
+}
 bool step(CodeArray& code, ptrdiff_t& pc) {
 	Instruction instr = code.code[pc++];
 	switch (instr.ins) {
 	case ALLOC:
-	case CONS:
-	case DIV:
-	case EQ:
-	case GE:
-	case GT:
 	case HD:
 	case LABEL:
 	case MKBOOL:
-	case MUL:
+	case MOD:
 	case NE:
 	case NEG:
 	case NOT:
 	case NULLinst:
 	case PUSHBOOL:
-	case PUSHNIL:
 	case TL: throw "Unknown instruction in step";
 	case ADD: stepBinop(instr); break;
+	case CONS: stepCons(instr); break;
+	case DIV:
+	case EQ: stepBinop(instr); break;
 	case EVAL: stepEval(/*instr,*/ pc); break;
+	case GE: stepBinop(instr); break;
 	case GET: stepGet(/*instr*/); break;
+	case GT: stepBinop(instr); break;
 	case JFALSE: stepJFalse(instr, pc); break;
 	case JMP: stepJmp(instr, pc); break;
 	case LE:
 	case LT: stepBinop(instr); break;
 	case MKAP: stepMkAp(); break;
 	case MKINT: stepMkInt(); break;
+	case MUL: stepBinop(instr); break;
 	case PRINT: stepPrint(instr,pc); break;
 	case PUSH: stepPush(instr.n); break;
 	case PUSHBASIC: stepPushBasic(instr); break;
 	case PUSHFUN: stepPushFun(instr.node); break;
 	case PUSHINT: stepPushInt(instr.dest); break;
+	case PUSHNIL: stepPushNil(); break;
 	case RET: stepRet(instr, pc); break;
 	case SLIDE: stepSlide(instr.n); break;
 	case SUB: stepBinop(instr); break;
@@ -1889,10 +1919,22 @@ struct CompileEVisitor : public ExprVisitor {
 		compileB(code, e, env);
 		code.add(Instruction(MKBOOL));
 	}
-	void visitExprGt(ExprGt*) {}
-	void visitExprLe(ExprLe*) {}
-	void visitExprGe(ExprGe*) {}
-	void visitExprNeg(ExprNeg*) {}
+	void visitExprLe(ExprLe* e) {
+		compileB(code, e, env, args);
+		code.add(Instruction(MKBOOL));
+	}
+	void visitExprGe(ExprGe* e) {
+		compileB(code, e, env, args);
+		code.add(Instruction(MKBOOL));
+	}
+	void visitExprNeg(ExprNeg* e) {
+		compileB(code, e, env, args);
+		code.add(Instruction(MKBOOL));
+	}
+	void visitExprNot(ExprNot* e) {
+		compileB(code,e->subj, env, args);
+		code.add(Instruction(NOT));
+	}
 };
 void compileC(CodeArray& code, Expr* expr, const Env& env) {
 	CompileCVisitor visitor(code, env);
