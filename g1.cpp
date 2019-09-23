@@ -1300,6 +1300,7 @@ void stepPush(unsigned n) {
 	}
 }
 void stepSlide(int n) {
+	throw __PRETTY_FUNCTION__ + string(" rewrite for G");
 	showStack("stack before slide "+::to_string(n));
 	auto a0 = nodeStack.front();
 	nodeStack.pop_front();
@@ -1308,19 +1309,28 @@ void stepSlide(int n) {
 	nodeStack.push_front(a0);
 	showStack("Stack after slide");
 }
-void stepUpdate(unsigned n) {
-	//if (gmStack.size()<=(n+1)) {
-	//	cout << "Judgment " << gmStack.size() << " vs " << (n+1) << " is " << (gmStack.size()>(n+1)) << " Stack size " << gmStack.size() << " not big enough for update " << n << endl;
-	//	showStack("");
-	//	throw "Bad Update";
-	//}
-	showStack("stack before update "+::to_string(n));
+void stepUpdate(unsigned m) {
+	//      <o, UPDATE m.c, n0 n1 ... nm.s, v, G[n0:N0, nm:Nm], E, D>
+	//   => <o,          c,    n1 ... nm.s, v, G[n0:N0, nm:N0], E, D>
+	// Meaning,
+	//	Take the node from the top of the stack and put it at the mth position on the stack
+	//  Drop the top node from the stack
+	//  The instruction is done.
+	//
+	// This means that there must be m+1 stack entries available.
+	// The dump does not save you.
+
+	showStack("stack before update "+::to_string(m));
+	if (nodeStack.size()<=(m+1)) {
+		cout << "Judgment " << nodeStack.size() << " vs " << (m+1) << " is " << (nodeStack.size()>(m+1)) << " Stack size " << nodeStack.size() << " not big enough for update " << m << endl;
+		throw "Bad Update";
+	}
 	Node* tos = nodeStack.front(); nodeStack.pop_front();
-	showStack("stack during update "+::to_string(n));
+	showStack("stack during update "+::to_string(m));
 	auto p = nodeStack.begin();
-	advance(p, n-1);
-	cout << "distance(gmStack.begin(),p) " << distance(nodeStack.begin(),p)
-		<< " gmStack.size() " << nodeStack.size() << endl;
+	advance(p, m-1);
+	//cout << "distance(gmStack.begin(),p) " << distance(nodeStack.begin(),p)
+	//	<< " gmStack.size() " << nodeStack.size() << endl;
 	//assert((unsigned)distance(gmStack.begin(),p) < gmStack.size());
 	*p = tos;//new NInd(tos);
 	showStack("Stack after update");
@@ -1376,34 +1386,62 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		if (nodeStack.size() < gtop->args) {
 			cout << __PRETTY_FUNCTION__ << ": stack " << nodeStack.size() << " not enough for " << gtop->args << " arguments" << endl;
 		}
-		GmStack spine;
-		GmStack::const_iterator p=nodeStack.begin(); // where NFun is.
-		++p; // first argument;
-		for (unsigned i=0; i<gtop->args; ++i) {
-			Node* a = *p++;
-			NAp* c = dynamic_cast<NAp*>(a);
-			if (c == nullptr) {
-				cout << "argument should be NAp but isn't" << endl;
-				throw "Bad arg";
+		//    <o, UNWIND.(), n0...nk.s,    v, G[n0=FUN f,n1...nk=AP], E[f=(k,c)], D> ;; i.e. there are k+1 stack nodes at least.
+		// => <o, c,         arg1...argk.s,v, G,                      E,          D>
+		//    Enough args:
+		//      Drop all the nodes n0..nk, push the arguments and jump to the function code.
+		//
+		//    <o, UNWIND.(), n0...nk.(),   v, G[n0=FUN f,n1...nk=AP], E[f=(a,c)], (c,s').D> ;; k<a not enough
+		// => <o, c,         nk.s',        v, G,                      E,                 D>
+		//    NOT enough args:
+		//      Pop a dump item.
+		//      Switch to dump item stack
+		//      push nk from previous stack.
+		//      Execute code from dump item.
+		if (nodeStack.size() >= (gtop->args+1)) {
+			showStack("Stack before fun unwind");
+			GmStack spine;
+			GmStack::const_iterator p=nodeStack.begin(); // where NFun is.
+			++p; // first argument;
+			for (unsigned i=0; i<gtop->args; ++i) {
+				Node* a = *p++;
+				NAp* c = dynamic_cast<NAp*>(a);
+				if (c == nullptr) {
+					cout << "argument should be NAp but isn't" << endl;
+					throw "Bad arg";
+				}
+				spine.push_back(c->a2);
 			}
-			spine.push_back(c->a2);
-		}
-		cout << __PRETTY_FUNCTION__<< " Spine [";
-		for (const auto& se : spine) {
-			cout << ' ' << se->to_string();
-		}
-		cout << "]" << endl;
-		cout << __PRETTY_FUNCTION__ << " Fun " << gtop->to_string() << endl;
-		//nodeStack = concat(take(gtop->args, nodeStack), drop(gtop->args+1,nodeStack));
-		nodeStack = concat(take(gtop->args, spine), drop(gtop->args+1,nodeStack));
-		showStack("Stack during fun unwind");
+			cout << __PRETTY_FUNCTION__<< " Spine [";
+			for (const auto& se : spine) {
+				cout << ' ' << se->to_string();
+			}
+			cout << "] " << spine.size() << " elements. We need " << gtop->args << " of these." << endl;
+			cout << __PRETTY_FUNCTION__ << " Fun " << gtop->to_string() << endl;
+			cout << __PRETTY_FUNCTION__ << " "; showStack("original stack before rearranging");
+			//nodeStack = concat(take(gtop->args, nodeStack), drop(gtop->args+1,nodeStack));
+			nodeStack = concat(take(gtop->args, spine), drop(gtop->args+1,nodeStack));
+			showStack("Stack during fun unwind");
 
-		pc = gtop->address;
+			pc = gtop->address;
+		} else {
+			DumpItem d = dump.front(); dump.pop_front();
+			auto nodeK = nodeStack.back();
+			nodeStack = d.nodeStack;
+			nodeStack.push_back(nodeK);
+			//throw "Unwind needs to use dump";
+			pc = d.code;
+			showStack("Stack during fun unwind with grab from dump");
+		}
 		done = true;
 	}
 	void visitNAp(NAp* aptop) {
-		cout << "aptop " << aptop->to_string() << endl;
-		cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
+		//    <o, UNWIND.(),    n.s, v, G[n=Ap n1,n2], E, D>
+		// => <o, UNWIND.(), n1.n.s, v, G[n=Ap n1,n2], E, D>
+		// That is, Take the fun graph from the Nap and push it to the node stack.
+		// Then repeat UNWIND
+		//cout << "aptop " << aptop->to_string() << endl;
+		//cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
 		nodeStack.push_front(aptop->a1);
 		showStack("Stack during ap unwind");
 		//pc--; // instead of backing up, we reiterate directly.
@@ -1502,17 +1540,40 @@ void stepMkInt() {
 }
 void stepRet(const Instruction& ins, ptrdiff_t& pc) {
 	showStack("Before RET "+::to_string(ins.n));
-	if (nodeStack.size() <= ins.n)
+	if (nodeStack.size() < ins.n)
 		throw "Stack underflow";
 	for (unsigned n=0; n<ins.n; n++)
 		nodeStack.pop_front();
 	showStack("RET after popping "+::to_string(ins.n));
+	if (nodeStack.size()<1)
+		throw "No whnf node left on stack";
 	while (true) {
 		auto ap = dynamic_cast<NAp*>(nodeStack.front());
 		if (ap) {
 			pc = 1;
 			break;
 		}
+		auto fn = dynamic_cast<NFun*>(nodeStack.front());
+		if (fn) {
+			pc = 1;
+			break;
+		}
+		// New way: Assume that nodes that arent FUN, IND or AP are
+		// whnf already
+		if (dump.size()==0)
+		{
+			pc = 0; // halt when there's no dump.
+			break;
+		}
+		// Pop the dump and push the whnf node onto that stack.
+		// Then continue from PC saved in dump.
+		auto n = nodeStack.front();
+		auto d = dump.front(); dump.pop_front();
+		nodeStack = d.nodeStack;
+		pc = d.code;
+		nodeStack.push_front(n);
+		break;
+		// Old way
 		auto i = dynamic_cast<NInt*>(nodeStack.front());
 		if (i) {
 			// If the DUMP is empty we stop
@@ -1645,13 +1706,13 @@ Env envShift(const Env& env, int sh) {
 }
 static
 void envAddArgs(Env& env, const list<string> args) {
-	int kArg = 0;
+	int kArg = args.size()+1;
 	for (auto arg : args) {
         EnvItem entry;
         //entry.name = arg;
         entry.mode.mode = AddressMode::Local;
         entry.mode.localIndex = kArg;
-        kArg++;
+        kArg--;
         env[arg] = entry;
 	}
 }
@@ -1686,7 +1747,12 @@ struct CompileCVisitor : public ExprVisitor {
 		auto pm = env.find(evar->var);
 		if (pm != env.end()) {
 			switch (pm->second.mode.mode) {
-			case AddressMode::Local: code.add(Instruction(PUSH,pm->second.mode.localIndex)); break;
+			case AddressMode::Local: {
+				cout << __PRETTY_FUNCTION__ << " Local " << evar->var << " am " << pm->second.mode.localIndex << " args " << args << endl;
+				code.add(Instruction(PUSH,args-pm->second.mode.localIndex));
+				cout << __PRETTY_FUNCTION__ << " " << evar->var << " Result:" << instructionToString(code.code[code.code.size()-1]) << endl;
+				break;
+			}
 			case AddressMode::Global: code.add(Instruction(PUSHFUN,pm->second.mode.node)); break;
 			}
 			cout << __PRETTY_FUNCTION__ << " compileC VAR ended at " << code.code.size() << endl;
@@ -1968,11 +2034,17 @@ struct CompileEVisitor : public ExprVisitor {
 		auto pm = env.find(evar->var);
 		if (pm != env.end()) {
 			switch (pm->second.mode.mode) {
-			case AddressMode::Local: code.add(Instruction(PUSH,pm->second.mode.localIndex)); code.add(Instruction(EVAL)); break;
+			case AddressMode::Local: {
+				cout << __PRETTY_FUNCTION__ << " Local " << evar->var << " am " << pm->second.mode.localIndex << " args " << args << endl;
+				code.add(Instruction(PUSH,args-pm->second.mode.localIndex));
+				cout << __PRETTY_FUNCTION__ << " " << evar->var << " Result:" << instructionToString(code.code[code.code.size()-1]) << endl;
+				code.add(Instruction(EVAL)); break;
+			}
 			case AddressMode::Global: code.add(Instruction(PUSHFUN,pm->second.mode.node)); break;
 			}
 			return;
 		}
+		throw __PRETTY_FUNCTION__ + string(" ")+ evar->var + " undefined";
 	}
 	void visitExprApp(ExprApp* eapp) {
 		compileC(code,eapp,env,args);
@@ -2188,13 +2260,19 @@ int main(int argc, char** argv)
 		cout << "main not found" << endl;
 		return 1;
     }
-    ptrdiff_t pc = code.code.size();
-    code.add(Instruction(PUSHFUN,mode.node));
+    ptrdiff_t pc = mode.node->address; //code.code.size();
+    //code.add(Instruction(PUSHFUN,mode.node));
     //code.add(UpdateInstruction(0));
     //code.add(PopInstruction(0));
     // maybe the above are not good for zero parameters?
-    code.add(Instruction(UNWIND));
-    code.add(Instruction(PRINT));
+    //code.add(Instruction(UNWIND));
+    //code.add(Instruction(PUSHINT,(ptrdiff_t)1));
+    //code.add(Instruction(PUSHNIL));
+    //code.add(Instruction(CONS));
+    //code.add(Instruction(PRINT));
+    //code.add(Instruction(STOP));
+    nodeStack.push_front(new NHole());
+    nodeStack.push_front(new NHole());
     for (unsigned i=0; i<code.code.size(); ++i) {
     	string id;
     	for (auto e : env) {
@@ -2218,7 +2296,7 @@ int main(int argc, char** argv)
 				}
 			}
 			if (id.size()) cout << id << ":" << endl;
-			cout << pc <<": " << instructionToString(code.code[pc]) << endl;
+			cout << "S:" << nodeStack.size()<<" D:"<< dump.size()<<" PC:"<< pc <<": " << instructionToString(code.code[pc]) << endl;
 		}
     }
     catch (int e) {
