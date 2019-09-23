@@ -1309,11 +1309,6 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		pc = 0;
 		done = true;
 	}
-	void visitNInd(NInd* iitop) {
-		Node* replacement = iitop->a;
-		nodeStack.front() = replacement;
-		showStack("Stack during ap unwind");
-	}
 	list<Node*> tl(list<Node*> x) {
 		auto r = x;
 		r.pop_front();
@@ -1479,11 +1474,6 @@ void stepRet(const Instruction& ins, ptrdiff_t& pc) {
 		if (ap) {
 			pc = 1;
 			break;
-		}
-		auto ii = dynamic_cast<NInd*>(nodeStack.front());
-		if (ii) {
-			nodeStack.front() = ii->a;
-			continue;
 		}
 		auto i = dynamic_cast<NInt*>(nodeStack.front());
 		if (i) {
