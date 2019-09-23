@@ -940,6 +940,7 @@ enum InstructionType {
 	MKAP,
 	MKBOOL,
 	MKINT,
+	MOD,
 	MUL,
 	NE,
 	NEG,
@@ -1429,6 +1430,7 @@ struct PrintNodeVisitor : public NodeVisitor {
 #endif
 		//throw "don't print Cons yet";
 	}
+	void visitNNil(NNil* n) { cout << n->to_string(); nodeStack.pop_front(); done=true;}
 	void visitNFun(NFun*) {
 		throw "Don't print a fun";
 	}
@@ -1908,15 +1910,31 @@ struct CompileEVisitor : public ExprVisitor {
 		code.add(Instruction(MKINT));
 	}
 	void visitExprMul(ExprMul* e) {
-		compileB(code, e, env);
+		compileB(code, e, env, args);
 		code.add(Instruction(MKINT));
 	}
-	void visitExprDiv(ExprDiv*) {}
-	void visitExprMod(ExprMod*) {}
-	void visitExprEq(ExprEq*) {}
-	void visitExprNe(ExprNe*) {}
+	void visitExprDiv(ExprDiv* e) {
+		compileB(code, e, env, args);
+		code.add(Instruction(MKINT));
+	}
+	void visitExprMod(ExprMod* e) {
+		compileB(code, e, env, args);
+		code.add(Instruction(MKBOOL));
+	}
+	void visitExprEq(ExprEq* e) {
+		compileB(code, e, env, args);
+		code.add(Instruction(MKBOOL));
+	}
+	void visitExprNe(ExprNe* e) {
+		compileB(code, e, env, args);
+		code.add(Instruction(MKBOOL));
+	}
 	void visitExprLt(ExprLt* e) {
-		compileB(code, e, env);
+		compileB(code, e, env, args);
+		code.add(Instruction(MKBOOL));
+	}
+	void visitExprGt(ExprGt* e) {
+		compileB(code, e, env, args);
 		code.add(Instruction(MKBOOL));
 	}
 	void visitExprLe(ExprLe* e) {
