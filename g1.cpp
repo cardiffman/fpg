@@ -1764,6 +1764,10 @@ struct CompileCVisitor : public ExprVisitor {
 	void visitExprLe(ExprLe*) { throw __PRETTY_FUNCTION__; }
 	void visitExprGe(ExprGe*) { throw __PRETTY_FUNCTION__; }
 	void visitExprNeg(ExprNeg*) { throw __PRETTY_FUNCTION__; }
+	void visitExprNot(ExprNot* e) {
+		auto e2 = new ExprApp(new ExprVar("__not"),e->subj);
+		compileC(code, e2, env, args);
+	}
 };
 struct CompileBVisitor : public ExprVisitor {
 	CompileBVisitor(CodeArray& code, Env& env, unsigned args) : code(code), env(env), args(args) {}
@@ -1879,6 +1883,10 @@ struct CompileBVisitor : public ExprVisitor {
 	void visitExprLe(ExprLe*) {}
 	void visitExprGe(ExprGe*) {}
 	void visitExprNeg(ExprNeg*) {}
+	void visitExprNot(ExprNot* e) {
+		compileB(code, e->subj, env, args);
+		code.add(Instruction(NOT));
+	}
 };
 struct CompileEVisitor : public ExprVisitor {
 	CompileEVisitor(CodeArray& code, Env& env, unsigned args) : code(code), env(env), args(args) {}
