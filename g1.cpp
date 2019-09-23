@@ -118,6 +118,7 @@ struct ExprGt;
 struct ExprLe;
 struct ExprGe;
 struct ExprNeg;
+struct ExprNot;
 struct ExprVisitor {
 	virtual ~ExprVisitor() {}
 	virtual void visitExprVar(ExprVar* e) = 0;
@@ -1047,7 +1048,6 @@ struct NFun;
 struct NInt;
 struct NBool;
 struct NAp;
-struct NInd;
 struct NCons;
 struct NNil;
 struct NHole;
@@ -1057,7 +1057,6 @@ struct NodeVisitor {
 	virtual void visitNInt(NInt* n) = 0;
 	virtual void visitNBool(NBool* n) = 0;
 	virtual void visitNAp(NAp* n) = 0;
-	virtual void visitNInd(NInd* n) = 0;
 	virtual void visitNCons(NCons* n) = 0;
 	virtual void visitNNil(NNil* n) = 0;
 	virtual void visitNHole(NHole* n) = 0;
@@ -1107,14 +1106,6 @@ struct NAp : public Node {
 	void visit(NodeVisitor* v) { v->visitNAp(this); }
 	Node* a1;
 	Node* a2;
-};
-struct NInd : public Node {
-	NInd(Node* a) : a(a) {}
-	string to_string() const {
-		return "&"+a->to_string();
-	}
-	void visit(NodeVisitor* v) { v->visitNInd(this); }
-	Node* a;
 };
 struct NCons: public Node {
 	NCons(Node* hd, Node* tl) : hd(hd), tl(tl) {}
@@ -1303,7 +1294,7 @@ void stepUpdate(unsigned n) {
 	cout << "distance(gmStack.begin(),p) " << distance(nodeStack.begin(),p)
 		<< " gmStack.size() " << nodeStack.size() << endl;
 	//assert((unsigned)distance(gmStack.begin(),p) < gmStack.size());
-	*p = new NInd(tos);
+	*p = tos;//new NInd(tos);
 	showStack("Stack after update");
 }
 struct UnwindNodeVisitor : public NodeVisitor {
@@ -1419,13 +1410,7 @@ struct PrintNodeVisitor : public NodeVisitor {
 		stepPrint();
 		done = true;
 #endif
-		throw "don't print Cons yet";
-	}
-	void visitNNil(NNil*) { /*Nil doesn't print anything*/ done=true;}
-	void visitNInd(NInd* iitop) {
-		Node* replacement = iitop->a;
-		nodeStack.front() = replacement;
-		showStack("Stack NInd print");
+		//throw "don't print Cons yet";
 	}
 	void visitNFun(NFun*) {
 		throw "Don't print a fun";
@@ -1531,11 +1516,6 @@ void stepEval(/*const Instruction& instr,*/ ptrdiff_t& pc) {
 			}
 			pc = 1; // Go to unwind
 			break;
-		}
-		auto ii = dynamic_cast<NInd*>(nodeStack.front());
-		if (ii) {
-			nodeStack.front() = ii->a;
-			continue;
 		}
 		// All other nodes are whnf and need no further effort.
 		break;
