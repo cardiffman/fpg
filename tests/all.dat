@@ -1,0 +1,32 @@
+id x=x;
+tsub x=id(x-x);
+tmul x=id(x*x);
+tneg x=id(-x);
+tdiv x=id(x/x);
+tmod x=id(x%x);
+tlt x=id(x<x);
+tgt x=id(x>x);
+tle x=id(x<=x);
+tge x=id(x>=x);
+tnot x=id(!x);
+teq x=id(x==x);
+tne x=id(x!=x);
+badd x=x+x;
+bsub x=x-x;
+bmul x=x*x;
+bdiv x=x/x;
+bmod x=x%x;
+bge x=x>=x;
+bg x=x>x;
+ble x=x<=x;
+bl x=x<x;
+bne x=x!=x;
+beq x=x==x;
+bnot x= !x;
+bneg x= -x;
+bnil x=nil x;
+bhd x=hd x;
+btl x=tl x;
+
+main = id (3+4);
+

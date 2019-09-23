@@ -634,6 +634,11 @@ bool binop(Token t) {
 	case T_DIV:
 	case T_MOD:
 	case T_LT:
+	case T_LE:
+	case T_GT:
+	case T_GE:
+	case T_EQ:
+	case T_NE:
 		return true;
 	default: break;
 	}
@@ -1482,6 +1487,8 @@ void stepBinop(const Instruction& ins) {
 	case ADD: valueStack.front() = left+right; break;
 	case SUB: valueStack.front() = left-right; break;
 	case MUL: valueStack.front() = left*right; break;
+	case DIV: valueStack.front() = left/right; break;
+	case MOD: valueStack.front() = left%right; break;
 	case LT: valueStack.front() = (left<right); break;
 	default: throw "Unimplemented math in stepBinop";
 	}
@@ -1704,8 +1711,8 @@ struct CompileCVisitor : public ExprVisitor {
 	void visitExprBool(ExprBool* e) {
 		code.add(Instruction(PUSHBOOL,e->value));
 	}
-	void visitExprChar(ExprChar*) {}
-	void visitExprStr(ExprStr*) {}
+	void visitExprChar(ExprChar*) { throw __PRETTY_FUNCTION__; }
+	void visitExprStr(ExprStr*) { throw __PRETTY_FUNCTION__; }
 	void visitExprNil(ExprNil*) {
 		code.add(Instruction(PUSHNIL));
 	}
@@ -1749,21 +1756,53 @@ struct CompileCVisitor : public ExprVisitor {
 		cout << __PRETTY_FUNCTION__ << " Desugar: " << e->to_string(0) << " to " << e2->to_string(3) << endl;
 		cout << __PRETTY_FUNCTION__ << " Desugar: compileC code ended at " << code.code.size() << endl;
 	}
-	void visitExprDiv(ExprDiv*) { throw __PRETTY_FUNCTION__; }
-	void visitExprMod(ExprMod*) { throw __PRETTY_FUNCTION__; }
-	void visitExprEq(ExprEq*) { throw __PRETTY_FUNCTION__; }
-	void visitExprNe(ExprNe*) { throw __PRETTY_FUNCTION__; }
+	void visitExprDiv(ExprDiv* e) {
+		auto e2 = new ExprApp(new ExprVar("div"),e->left);
+		e2->args.push_back(e->right);
+		compileC(code, e2, env,args);
+	}
+	void visitExprMod(ExprMod* e) {
+		auto e2 = new ExprApp(new ExprVar("div"),e->left);
+		e2->args.push_back(e->right);
+		compileC(code, e2, env,args);
+	}
+	void visitExprEq(ExprEq* e) {
+		auto e2 = new ExprApp(new ExprVar("__eq"),e->left);
+		e2->args.push_back(e->right);
+		compileC(code, e2, env,args);
+	}
+	void visitExprNe(ExprNe* e) {
+		auto e2 = new ExprApp(new ExprVar("__ne"),e->left);
+		e2->args.push_back(e->right);
+		compileC(code, e2, env,args);
+	}
 	void visitExprLt(ExprLt* e) {
 		auto e2 = new ExprApp(new ExprVar("__lt"),e->left);
 		e2->args.push_back(e->right);
 		//e2->visit(this);
 		compileC(code, e2, env,args);
 		cout << __PRETTY_FUNCTION__ << " Desugar: " << e->to_string(0) << " to " << e2->to_string(3) << endl;
+		cout << __PRETTY_FUNCTION__ << " Desugar: compileC code ended at " << code.code.size() << endl;
 	}
-	void visitExprGt(ExprGt*) { throw __PRETTY_FUNCTION__; }
-	void visitExprLe(ExprLe*) { throw __PRETTY_FUNCTION__; }
-	void visitExprGe(ExprGe*) { throw __PRETTY_FUNCTION__; }
-	void visitExprNeg(ExprNeg*) { throw __PRETTY_FUNCTION__; }
+	void visitExprGt(ExprGt* e) {
+		auto e2 = new ExprApp(new ExprVar("__gt"),e->left);
+		e2->args.push_back(e->right);
+		compileC(code, e2, env,args);
+	}
+	void visitExprLe(ExprLe* e) {
+		auto e2 = new ExprApp(new ExprVar("__le"),e->left);
+		e2->args.push_back(e->right);
+		compileC(code, e2, env,args);
+	}
+	void visitExprGe(ExprGe* e) {
+		auto e2 = new ExprApp(new ExprVar("__ge"),e->left);
+		e2->args.push_back(e->right);
+		compileC(code, e2, env,args);
+	}
+	void visitExprNeg(ExprNeg* e) {
+		auto e2=new ExprApp(new ExprVar("__neg"),e->subj);
+		compileC(code, e2, env, args);
+	}
 	void visitExprNot(ExprNot* e) {
 		auto e2 = new ExprApp(new ExprVar("__not"),e->subj);
 		compileC(code, e2, env, args);
@@ -1775,9 +1814,7 @@ struct CompileBVisitor : public ExprVisitor {
 	Env& env;
 	unsigned args;
 	void visitExprNum(ExprNum* eint) {
-		cout << __PRETTY_FUNCTION__ << " " << eint->to_string(0) << endl;
 		Instruction ins(PUSHBASIC,eint->value);
-		cout << __PRETTY_FUNCTION__ << " resulting instruction " << instructionToString(&ins) << endl;
 		code.add(ins);
 	}
 	void visitExprVar(ExprVar* evar) {
@@ -1788,12 +1825,12 @@ struct CompileBVisitor : public ExprVisitor {
 		compileE(code, eapp, env, args);
 		code.add(Instruction(GET));
 	}
-	void visitExprLet(ExprLet*) {}
+	void visitExprLet(ExprLet*) { throw __PRETTY_FUNCTION__; }
 	void visitExprBool(ExprBool* e) {
 		code.add(Instruction(PUSHBASIC,e->value));
 	}
-	void visitExprChar(ExprChar*) {}
-	void visitExprStr(ExprStr*) {}
+	void visitExprChar(ExprChar*) { throw __PRETTY_FUNCTION__; }
+	void visitExprStr(ExprStr*) { throw __PRETTY_FUNCTION__; }
 	void visitExprNil(ExprNil*) {
 		code.add(Instruction(PUSHNIL));
 	}
@@ -1818,8 +1855,8 @@ struct CompileBVisitor : public ExprVisitor {
 #endif
 		code.add(Instruction(CONS));
 	}
-	void visitExprHd(ExprHd*) {}
-	void visitExprTl(ExprTl*) {}
+	void visitExprHd(ExprHd*) { throw __PRETTY_FUNCTION__; }
+	void visitExprTl(ExprTl*) { throw __PRETTY_FUNCTION__; }
 	void visitExprNull(ExprNull* e) {
 		compileE(code, e->subject, env, args);
 		code.add(Instruction(NULLinst));
@@ -1837,7 +1874,7 @@ struct CompileBVisitor : public ExprVisitor {
 		compileB(code,e->right, shift, args);
 #endif
 		code.add(Instruction(ADD));
-		cout << __PRETTY_FUNCTION__ << " code begins at " << code.code.size() << endl;
+		cout << __PRETTY_FUNCTION__ << " code ends at " << code.code.size() << endl;
 	}
 	void visitExprSub(ExprSub* e) {
 		cout << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
@@ -1864,10 +1901,26 @@ struct CompileBVisitor : public ExprVisitor {
 		code.add(Instruction(MUL));
 		cout << __PRETTY_FUNCTION__ << " code begins at " << code.code.size() << endl;
 	}
-	void visitExprDiv(ExprDiv*) {}
-	void visitExprMod(ExprMod*) {}
-	void visitExprEq(ExprEq*) {}
-	void visitExprNe(ExprNe*) {}
+	void visitExprDiv(ExprDiv* e) {
+		compileB(code,e->left, env, args);
+		compileB(code,e->right, env, args+1);
+		code.add(Instruction(DIV));
+	}
+	void visitExprMod(ExprMod* e) {
+		compileB(code,e->left, env, args);
+		compileB(code,e->right, env, args+1);
+		code.add(Instruction(MOD));
+	}
+	void visitExprEq(ExprEq* e) {
+		compileB(code,e->left, env, args);
+		compileB(code,e->right, env, args+1);
+		code.add(Instruction(EQ));
+	}
+	void visitExprNe(ExprNe* e) {
+		compileB(code,e->left, env, args);
+		compileB(code,e->right, env, args+1);
+		code.add(Instruction(NE));
+	}
 	void visitExprLt(ExprLt* e) {
 		cout << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
 		compileB(code,e->left, env, args);
@@ -1879,10 +1932,25 @@ struct CompileBVisitor : public ExprVisitor {
 #endif
 		code.add(Instruction(LT));
 	}
-	void visitExprGt(ExprGt*) {}
-	void visitExprLe(ExprLe*) {}
-	void visitExprGe(ExprGe*) {}
-	void visitExprNeg(ExprNeg*) {}
+	void visitExprGt(ExprGt* e) {
+		compileB(code,e->left, env, args);
+		compileB(code,e->right, env, args+1);
+		code.add(Instruction(GT));
+	}
+	void visitExprLe(ExprLe* e) {
+		compileB(code,e->left, env, args);
+		compileB(code,e->right, env, args+1);
+		code.add(Instruction(LE));
+	}
+	void visitExprGe(ExprGe* e) {
+		compileB(code,e->left, env, args);
+		compileB(code,e->right, env, args+1);
+		code.add(Instruction(GE));
+	}
+	void visitExprNeg(ExprNeg* e) {
+		compileB(code,e->subj, env, args);
+		code.add(Instruction(NEG));
+	}
 	void visitExprNot(ExprNot* e) {
 		compileB(code, e->subj, env, args);
 		code.add(Instruction(NOT));
@@ -1910,12 +1978,12 @@ struct CompileEVisitor : public ExprVisitor {
 		compileC(code,eapp,env,args);
 		code.add(Instruction(EVAL));
 	}
-	void visitExprLet(ExprLet*) {}
+	void visitExprLet(ExprLet*) { throw __PRETTY_FUNCTION__; }
 	void visitExprBool(ExprBool* e) {
 		code.add(Instruction(PUSHBOOL,e->value));
 	}
-	void visitExprChar(ExprChar*) {}
-	void visitExprStr(ExprStr*) {}
+	void visitExprChar(ExprChar*) { throw __PRETTY_FUNCTION__; }
+	void visitExprStr(ExprStr*) { throw __PRETTY_FUNCTION__; }
 	void visitExprNil(ExprNil*) {
 		code.add(Instruction(PUSHNIL));
 	}
@@ -1938,8 +2006,14 @@ struct CompileEVisitor : public ExprVisitor {
 		compileC(code,e->tl, env, args+1);
 		code.add(Instruction(CONS));
 	}
-	void visitExprHd(ExprHd*) {}
-	void visitExprTl(ExprTl*) {}
+	void visitExprHd(ExprHd* e) {
+		compileC(code,e->subject, env, args);
+		code.add(Instruction(HD));
+	}
+	void visitExprTl(ExprTl* e) {
+		compileC(code,e->subject, env, args);
+		code.add(Instruction(TL));
+	}
 	void visitExprNull(ExprNull* e) {
 		compileE(code, e->subject, env, args);
 		code.add(Instruction(NULLinst));
