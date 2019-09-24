@@ -1730,14 +1730,11 @@ struct CompileCVisitor : public ExprVisitor {
 		if (pm != env.end()) {
 			switch (pm->second.mode.mode) {
 			case AddressMode::Local: {
-				cout << __PRETTY_FUNCTION__ << " Local " << evar->var << " am " << pm->second.mode.localIndex << " args " << depth << endl;
 				code.add(Instruction(PUSH,depth-pm->second.mode.localIndex+1));
-				cout << __PRETTY_FUNCTION__ << " " << evar->var << " Result:" << instructionToString(code.code[code.code.size()-1]) << endl;
 				break;
 			}
 			case AddressMode::Global: code.add(Instruction(PUSHFUN,pm->second.mode.node)); break;
 			}
-			cout << __PRETTY_FUNCTION__ << " compileC VAR ended at " << code.code.size() << endl;
 			return;
 		}
 		cout << __PRETTY_FUNCTION__ << " Can't find " << evar->var << " in "; pprint_env(env);
@@ -2015,9 +2012,7 @@ struct CompileEVisitor : public ExprVisitor {
 		if (pm != env.end()) {
 			switch (pm->second.mode.mode) {
 			case AddressMode::Local: {
-				cout << __PRETTY_FUNCTION__ << " Local " << evar->var << " am " << pm->second.mode.localIndex << " depth " << depth << endl;
 				code.add(Instruction(PUSH,depth-pm->second.mode.localIndex+1));
-				cout << __PRETTY_FUNCTION__ << " " << evar->var << " Result:" << instructionToString(code.code[code.code.size()-1]) << endl;
 				code.add(Instruction(EVAL)); break;
 			}
 			case AddressMode::Global: code.add(Instruction(PUSHFUN,pm->second.mode.node)); break;
@@ -2247,16 +2242,6 @@ int main(int argc, char** argv)
 		return 1;
     }
     ptrdiff_t pc = mode.node->address; //code.code.size();
-    //code.add(Instruction(PUSHFUN,mode.node));
-    //code.add(UpdateInstruction(0));
-    //code.add(PopInstruction(0));
-    // maybe the above are not good for zero parameters?
-    //code.add(Instruction(UNWIND));
-    //code.add(Instruction(PUSHINT,(ptrdiff_t)1));
-    //code.add(Instruction(PUSHNIL));
-    //code.add(Instruction(CONS));
-    //nodeStack.push_front(new NHole());
-    //nodeStack.push_front(new NHole());
     for (unsigned i=0; i<code.code.size(); ++i) {
     	string id;
     	for (auto e : env) {
