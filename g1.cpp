@@ -1321,7 +1321,7 @@ void stepUpdate(unsigned m) {
 	// The dump does not save you.
 
 	showStack("stack before update "+::to_string(m));
-	if (nodeStack.size()<=(m+1)) {
+	if (nodeStack.size()<(m+1)) {
 		cout << "Judgment " << nodeStack.size() << " vs " << (m+1) << " is " << (nodeStack.size()>(m+1)) << " Stack size " << nodeStack.size() << " not big enough for update " << m << endl;
 		throw "Bad Update";
 	}
@@ -1374,14 +1374,6 @@ struct UnwindNodeVisitor : public NodeVisitor {
 	UnwindNodeVisitor(ptrdiff_t& pc) : pc(pc),done(false) {}
 	ptrdiff_t& pc;
 	bool done;
-	void visitNInt(NInt*) {
-		pc = 0;
-		done = true;
-	}
-	void visitNBool(NBool*) {
-		pc = 0;
-		done = true;
-	}
 	void visitNFun(NFun* gtop) {
 		if (nodeStack.size() < gtop->args) {
 			cout << __PRETTY_FUNCTION__ << ": stack " << nodeStack.size() << " not enough for " << gtop->args << " arguments" << endl;
@@ -1419,8 +1411,7 @@ struct UnwindNodeVisitor : public NodeVisitor {
 			cout << "] " << spine.size() << " elements. We need " << gtop->args << " of these." << endl;
 			cout << __PRETTY_FUNCTION__ << " Fun " << gtop->to_string() << endl;
 			cout << __PRETTY_FUNCTION__ << " "; showStack("original stack before rearranging");
-			//nodeStack = concat(take(gtop->args, nodeStack), drop(gtop->args+1,nodeStack));
-			nodeStack = concat(take(gtop->args, spine), drop(gtop->args+1,nodeStack));
+			nodeStack = concat(take(gtop->args, spine), drop(gtop->args,nodeStack));
 			showStack("Stack during fun unwind");
 
 			pc = gtop->address;
@@ -1447,6 +1438,8 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		showStack("Stack during ap unwind");
 		//pc--; // instead of backing up, we reiterate directly.
 	}
+	void visitNInt(NInt*) { throw "don't unwind INT"; }
+	void visitNBool(NBool*) { throw "don't unwind BOOL"; }
 	void visitNCons(NCons*) { throw "don't unwind Cons"; }
 	void visitNNil(NNil*) { throw "don't unwind Nil"; }
 	void visitNHole(NHole*) { throw "Don't unwind a hole";}
