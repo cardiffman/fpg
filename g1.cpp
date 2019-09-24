@@ -1245,6 +1245,11 @@ void showValues(const string& label) {
 	}
 	cout << endl;
 }
+void stepPushBool(const Instruction& ins) {
+	showStack("Stack before pushBool");
+	nodeStack.push_front(new NBool(ins.b));
+	showStack("Stack after pushBool");
+}
 void stepPushFun(NFun* sc) {
 	showStack("Stack before pushFun");
 	nodeStack.push_front(sc);
@@ -1509,6 +1514,34 @@ void stepPushBasic(const Instruction& ins) {
 	valueStack.push_front(ins.dest);
 	showValues("Stack after pushbasic");
 }
+void stepUnop(const Instruction& ins){
+	showValues("Stack before "+instructionToString(ins));
+	if (valueStack.size() < 1)
+		throw string(insToString(ins.ins))+" Value stack doesn't have an operand";
+	switch (ins.ins) {
+	case NEG: valueStack.front() = -valueStack.front(); break;
+	case NOT: valueStack.front() = !valueStack.front(); break;
+	case NULLinst: {
+		auto nilp = dynamic_cast<NNil*>(nodeStack.front());
+		auto res = (nilp != NULL);
+		nodeStack.pop_front();
+		valueStack.push_front(res);
+		break;
+	}
+	case HD: {
+		auto cons = dynamic_cast<NCons*>(nodeStack.front());
+		nodeStack.front() = cons->hd;
+		break;
+	}
+	case TL: {
+		auto cons = dynamic_cast<NCons*>(nodeStack.front());
+		nodeStack.front() = cons->tl;
+		break;
+	}
+	default: throw "Unimplemented math in stepBinop";
+	}
+	showValues("Stack after "+instructionToString(ins));
+}
 void stepBinop(const Instruction& ins) {
 	showValues("Stack before "+instructionToString(ins));
 	if (valueStack.size() < 2)
@@ -1522,9 +1555,20 @@ void stepBinop(const Instruction& ins) {
 	case DIV: valueStack.front() = left/right; break;
 	case MOD: valueStack.front() = left%right; break;
 	case LT: valueStack.front() = (left<right); break;
+	case GT: valueStack.front() = (left>right); break;
+	case LE: valueStack.front() = (left<=right); break;
+	case GE: valueStack.front() = (left>=right); break;
+	case NE: valueStack.front() = (left!=right); break;
+	case EQ: valueStack.front() = (left==right); break;
 	default: throw "Unimplemented math in stepBinop";
 	}
 	showValues("Stack after "+instructionToString(ins));
+}
+void stepMkBool() {
+	showValues("Stack before MKBOOL");
+	nodeStack.push_front(new NBool(!!valueStack.front()));
+	valueStack.pop_front();
+	showStack("Stack after MKBOOL");
 }
 void stepMkInt() {
 	showValues("Stack before MKINT");
@@ -1644,17 +1688,10 @@ void stepCons(const Instruction& ins) {
 bool step(CodeArray& code, ptrdiff_t& pc) {
 	Instruction instr = code.code[pc++];
 	switch (instr.ins) {
+	/* Alloc is for let forms. It will be implemented. */
 	case ALLOC:
-	case HD:
-	case LABEL:
-	case MKBOOL:
-	case MOD:
-	case NE:
-	case NEG:
-	case NOT:
-	case NULLinst:
-	case PUSHBOOL:
-	case TL: throw "Unknown instruction in step";
+	/* Label is for over-completeness. It's used in the paper but not here */
+	case LABEL: throw "Unknown instruction in step"; break;
 	case ADD: stepBinop(instr); break;
 	case CONS: stepCons(instr); break;
 	case DIV:
@@ -1663,22 +1700,31 @@ bool step(CodeArray& code, ptrdiff_t& pc) {
 	case GE: stepBinop(instr); break;
 	case GET: stepGet(/*instr*/); break;
 	case GT: stepBinop(instr); break;
+	case HD: stepUnop((instr)); break;
 	case JFALSE: stepJFalse(instr, pc); break;
 	case JMP: stepJmp(instr, pc); break;
 	case LE:
 	case LT: stepBinop(instr); break;
 	case MKAP: stepMkAp(); break;
+	case MKBOOL: stepMkBool(); break;
 	case MKINT: stepMkInt(); break;
-	case MUL: stepBinop(instr); break;
+	case MOD:
+	case MUL:
+	case NE: stepBinop(instr); break;
+	case NEG: stepUnop(instr); break;
+	case NOT: stepUnop(instr); break;
+	case NULLinst: stepUnop(instr); break;
 	case PRINT: stepPrint(instr,pc); break;
 	case PUSH: stepPush(instr.n); break;
 	case PUSHBASIC: stepPushBasic(instr); break;
+	case PUSHBOOL: stepPushBool(instr); break;
 	case PUSHFUN: stepPushFun(instr.node); break;
 	case PUSHINT: stepPushInt(instr.dest); break;
 	case PUSHNIL: stepPushNil(); break;
 	case RET: stepRet(instr, pc); break;
 	case SLIDE: stepSlide(instr.n); break;
 	case SUB: stepBinop(instr); break;
+	case TL: stepUnop(instr); break;
 	case UPDATE: stepUpdate(instr.n); break;
 	case UNWIND: stepUnwind(pc); break;
 	case STOP: break;
@@ -2200,7 +2246,21 @@ int main(int argc, char** argv)
     defs.push_front(t);
     t.name = "mul"; t.body = new ExprMul(new ExprVar("left"), new ExprVar("right"));
     defs.push_front(t);
+    t.name = "div"; t.body = new ExprDiv(new ExprVar("left"), new ExprVar("right"));
+    defs.push_front(t);
+    t.name = "mod"; t.body = new ExprMod(new ExprVar("left"), new ExprVar("right"));
+    defs.push_front(t);
     t.name = "__lt"; t.body = new ExprLt(new ExprVar("left"), new ExprVar("right"));
+    defs.push_front(t);
+    t.name = "__le"; t.body = new ExprLe(new ExprVar("left"), new ExprVar("right"));
+    defs.push_front(t);
+    t.name = "__gt"; t.body = new ExprGt(new ExprVar("left"), new ExprVar("right"));
+    defs.push_front(t);
+    t.name = "__ge"; t.body = new ExprGe(new ExprVar("left"), new ExprVar("right"));
+    defs.push_front(t);
+    t.name = "__eq"; t.body = new ExprEq(new ExprVar("left"), new ExprVar("right"));
+    defs.push_front(t);
+    t.name = "__ne"; t.body = new ExprNe(new ExprVar("left"), new ExprVar("right"));
     defs.push_front(t);
     pprint_defs(0, defs);
     Env env;
