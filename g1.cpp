@@ -1425,6 +1425,7 @@ struct UnwindNodeVisitor : public NodeVisitor {
 
 			pc = gtop->address;
 		} else {
+			showStack("Stack before fun unwind given "+::to_string(nodeStack.size())+" needing "+::to_string(gtop->args));
 			DumpItem d = dump.front(); dump.pop_front();
 			auto nodeK = nodeStack.back();
 			nodeStack = d.nodeStack;
@@ -1764,6 +1765,25 @@ struct CompileCVisitor : public ExprVisitor {
 		/*
 		 * C[e1 e2] r n = C[e1] r n; C[e2] r n+1; MKAP
 		 */
+#ifdef BIG_LIST_AP
+		/*
+50: PUSH 0          50: PUSH 0          50: PUSH 0
+51: EVAL            51: EVAL            51: EVAL
+52: GET             52: GET             52: GET
+53: PUSHFUN NFun 42 53: PUSHFUN NFun 42 53: PUSHFUN NFun 42
+54: PUSHFUN NFun 32 54: PUSHFUN NFun 32 54: PUSHFUN NFun 32
+55: PUSHINT 1       55: PUSHINT 1       55: PUSH 2
+56: PUSH 3          56: PUSH 3          56: MKAP
+57: MKAP            57: MKAP            57: PUSHINT 1
+58: MKAP            58: MKAP            58: MKAP
+59: MKAP            59: MKAP            59: MKAP
+60: EVAL            60: EVAL            60: EVAL
+61: GET             61: GET             61: GET
+62: MUL             62: MUL             62: MUL
+63: MKINT           63: MKINT           63: MKINT
+
+
+		 */
 		int shiftCount = 0;
 		compileC(code, eapp->fun, env, args);
 		for (auto pArg = eapp->args.rbegin(); pArg!=eapp->args.rend(); ++pArg) {
@@ -1772,6 +1792,11 @@ struct CompileCVisitor : public ExprVisitor {
 		}
 		for (unsigned a=0; a<eapp->args.size(); ++a)
 			code.add(Instruction(MKAP));
+#else
+		compileC(code, eapp->fun, env, args);
+		compileC(code, eapp->arg, env, args+1);
+		code.add(Instruction(MKAP));
+#endif
 	}
 	void visitExprLet(ExprLet*) { throw __PRETTY_FUNCTION__; }
 	void visitExprBool(ExprBool* e) {
@@ -1799,71 +1824,117 @@ struct CompileCVisitor : public ExprVisitor {
 	void visitExprTl(ExprTl*) { throw __PRETTY_FUNCTION__; }
 	void visitExprNull(ExprNull*) { throw __PRETTY_FUNCTION__; }
 	void visitExprAdd(ExprAdd* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("add"),e->left);
 		e2->args.push_back(e->right);
 		//e2->visit(this);
 		//compileC(code, e2, envShift(env,1),args);
 		compileC(code, e2, env,args);
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("add"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprSub(ExprSub* e) {
+#ifdef BIG_LIST_AP
 		// desugar in this case:
 		auto e2 = new ExprApp(new ExprVar("sub"),e->left);
 		e2->args.push_back(e->right);
 		//e2->visit(this);
 		compileC(code, e2, env,args);
 		cout << __PRETTY_FUNCTION__ << " Desugar: " << e->to_string(0) << " to " << e2->to_string(3) << endl;
+#elif 1
+		compileC(code, new ExprApp(new ExprVar("sub"), new ExprApp(e->left, e->right)), env, args);
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("sub"), e->left), e->right), env, args);
+#endif
 		cout << __PRETTY_FUNCTION__ << " Desugar: compileC code ended at " << code.code.size() << endl;
 	}
 	void visitExprMul(ExprMul* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("mul"),e->left);
 		e2->args.push_back(e->right);
 		//e2->visit(this);
 		compileC(code, e2, env,args);
 		cout << __PRETTY_FUNCTION__ << " Desugar: " << e->to_string(0) << " to " << e2->to_string(3) << endl;
 		cout << __PRETTY_FUNCTION__ << " Desugar: compileC code ended at " << code.code.size() << endl;
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("mul"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprDiv(ExprDiv* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("div"),e->left);
 		e2->args.push_back(e->right);
 		compileC(code, e2, env,args);
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("div"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprMod(ExprMod* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("div"),e->left);
 		e2->args.push_back(e->right);
 		compileC(code, e2, env,args);
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("mod"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprEq(ExprEq* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("__eq"),e->left);
 		e2->args.push_back(e->right);
 		compileC(code, e2, env,args);
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("__eq"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprNe(ExprNe* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("__ne"),e->left);
 		e2->args.push_back(e->right);
 		compileC(code, e2, env,args);
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("__ne"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprLt(ExprLt* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("__lt"),e->left);
 		e2->args.push_back(e->right);
 		//e2->visit(this);
 		compileC(code, e2, env,args);
 		cout << __PRETTY_FUNCTION__ << " Desugar: " << e->to_string(0) << " to " << e2->to_string(3) << endl;
 		cout << __PRETTY_FUNCTION__ << " Desugar: compileC code ended at " << code.code.size() << endl;
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("__lt"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprGt(ExprGt* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("__gt"),e->left);
 		e2->args.push_back(e->right);
 		compileC(code, e2, env,args);
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("__gt"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprLe(ExprLe* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("__le"),e->left);
 		e2->args.push_back(e->right);
 		compileC(code, e2, env,args);
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("__le"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprGe(ExprGe* e) {
+#ifdef BIG_LIST_AP
 		auto e2 = new ExprApp(new ExprVar("__ge"),e->left);
 		e2->args.push_back(e->right);
 		compileC(code, e2, env,args);
+#else
+		compileC(code, new ExprApp(new ExprApp(new ExprVar("__ge"), e->left), e->right), env, args);
+#endif
 	}
 	void visitExprNeg(ExprNeg* e) {
 		auto e2=new ExprApp(new ExprVar("__neg"),e->subj);
@@ -1946,6 +2017,8 @@ struct CompileBVisitor : public ExprVisitor {
 		cout << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
 		compileB(code,e->left, env, args);
 #if 1
+		compileB(code,e->right, env, args);
+#elif 1
 		compileB(code,e->right, env, args+1);
 #else
 		Env shift = envShift(env, 1);
@@ -1959,6 +2032,8 @@ struct CompileBVisitor : public ExprVisitor {
 		//e->left->visit(this); // open coded for economy
 		compileB(code,e->left, env, args);
 #if 1
+		compileB(code,e->right, env, args);
+#elif 1
 		compileB(code,e->right, env, args+1);
 #else
 		Env shift = envShift(env, 1);
@@ -1991,6 +2066,8 @@ struct CompileBVisitor : public ExprVisitor {
 		cout << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
 		compileB(code,e->left, env, args);
 #if 1
+		compileB(code,e->right, env, args);
+#elif 1
 		compileB(code,e->right, env, args+1);
 #else
 		Env shift = envShift(env, 1);
@@ -2239,7 +2316,13 @@ int main(int argc, char** argv)
 			item.args = def.args.size();
 			item.mode = AddressMode(new NFun(code.code.size(), item.args));
 			env[def.name] = item;
-			compileSc(code, def, env);
+			if (def.name=="main") {
+				compileE(code,def.body,env,0);
+			    code.add(Instruction(PRINT));
+			    code.add(Instruction(STOP)); // jumping into main's body and then main falling through to print.
+			} else {
+				compileSc(code, def, env);
+			}
 		}
     }
     catch (int e) {
@@ -2269,10 +2352,8 @@ int main(int argc, char** argv)
     //code.add(Instruction(PUSHINT,(ptrdiff_t)1));
     //code.add(Instruction(PUSHNIL));
     //code.add(Instruction(CONS));
-    //code.add(Instruction(PRINT));
-    //code.add(Instruction(STOP));
-    nodeStack.push_front(new NHole());
-    nodeStack.push_front(new NHole());
+    //nodeStack.push_front(new NHole());
+    //nodeStack.push_front(new NHole());
     for (unsigned i=0; i<code.code.size(); ++i) {
     	string id;
     	for (auto e : env) {
