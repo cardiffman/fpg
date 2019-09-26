@@ -1223,7 +1223,7 @@ void pprint_env(const Env& env) {
 
 typedef list<Node*> GmStack;
 GmStack nodeStack;
-typedef list<int> ValueStack;
+typedef list<ptrdiff_t> ValueStack;
 ValueStack valueStack;
 struct DumpItem {
 	GmStack nodeStack;
