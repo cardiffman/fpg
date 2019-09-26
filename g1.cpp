@@ -1215,9 +1215,9 @@ string amToString(AddressMode m) {
 static
 void pprint_env(const Env& env) {
         for (auto i: env) {
-                //cout << "env "<<i.first <<" entry "<<i.second << flush;/*, env, entry); fflush(stdout);*/
+                //cerr << "env "<<i.first <<" entry "<<i.second << flush;/*, env, entry); fflush(stdout);*/
                 //printf(" %s args %d mode %s\n", entry->name, entry->args, amToString(entry->mode.mode));
-                cout << i.first << " args " << i.second.args << ' ' << amToString(i.second.mode) << endl;
+                cerr << i.first << " args " << i.second.args << ' ' << amToString(i.second.mode) << endl;
         }
 }
 
