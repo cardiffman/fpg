@@ -708,9 +708,9 @@ Expr* E(int p) {
 	Expr* t = P();
 	while (atom(token) || token.type == T_LPAREN) {
 		Expr* arg = P();
-		//cout << __PRETTY_FUNCTION__ << " argument: " << arg->to_string(0) << endl;
+		//cerr << __PRETTY_FUNCTION__ << " argument: " << arg->to_string(0) << endl;
 		t = mkapp(t, arg);
-		//cout << __PRETTY_FUNCTION__ << " application: " << t->to_string(0) << endl;
+		//cerr << __PRETTY_FUNCTION__ << " application: " << t->to_string(0) << endl;
 	}
 
 
@@ -773,7 +773,7 @@ Expr* P(void) {
 		if (atom(token)) {
 			t = mkleaf(token); next(); return t;
 		} else {
-			cout << "Unexpected token " << token_to_string(token); exit(1);
+			cerr << "Unexpected token " << token_to_string(token); exit(1);
 		}
 		break;
 	}
@@ -784,7 +784,7 @@ Expr* P(void) {
 	else if (token.type == T_TL) { next(); Expr* t = E(2); return new ExprTl(t); }
 	else if (token.type == T_NIL) { next(); return new ExprNil(); }
 		if (token.type == T_LPAREN) { next(); Expr* t = E(0); assert(token.type==T_RPAREN);
-	//cout << __PRETTY_FUNCTION__ << " parenthesized: " << t->to_string(0) << endl;
+	//cerr << __PRETTY_FUNCTION__ << " parenthesized: " << t->to_string(0) << endl;
 	next(); return t; }
 	else if (atom(token)) {
 		if (token.type == T_IF) {
@@ -798,7 +798,7 @@ Expr* P(void) {
 		}
 		Expr* t = mkleaf(token); next(); return t;
 	}
-	else { cout << "Unexpected token " << token_to_string(token); exit(1); }
+	else { cerr << "Unexpected token " << token_to_string(token); exit(1); }
 #endif
 }
 Expr* parse_conditional(){
@@ -897,7 +897,7 @@ string indent(int col)
 
 void pprint_expr(int col, const Expr *e)
 {
-	cout << e->to_string(col) << endl;
+	cerr << e->to_string(col) << endl;
 }
 
 template <typename C> string join(const C& ner, int joint) {
@@ -912,12 +912,12 @@ template <typename C> string join(const C& ner, int joint) {
 }
 void pprint_def(int col, const Definition& def)
 {
-	cout << def.name;
+	cerr << def.name;
 	if (def.args.size())
-		cout << ' ' << join(def.args, ' ');
-	cout << " :=" << endl;
+		cerr << ' ' << join(def.args, ' ');
+	cerr << " :=" << endl;
     indent(col+2);
-    cout << def.body->to_string(col+2) << endl;
+    cerr << def.body->to_string(col+2) << endl;
 }
 
 void pprint_defs(int col, const list<Definition>& defs)
@@ -1232,18 +1232,18 @@ struct DumpItem {
 typedef list<DumpItem> Dump;
 Dump dump;
 void showStack(const string& label) {
-	cout << label << endl;
+	cerr << label << endl;
 	for (auto s : nodeStack) {
-		cout << /*s << ' ' <<*/ '[' << s->to_string() << "] ";
+		cerr << /*s << ' ' <<*/ '[' << s->to_string() << "] ";
 	}
-	cout << endl;
+	cerr << endl;
 }
 void showValues(const string& label) {
-	cout << label << endl;
+	cerr << label << endl;
 	for (auto s : valueStack) {
-		cout << /*s << ' ' <<*/ '[' << ::to_string(s) << "] ";
+		cerr << /*s << ' ' <<*/ '[' << ::to_string(s) << "] ";
 	}
-	cout << endl;
+	cerr << endl;
 }
 void stepPushBool(const Instruction& ins) {
 	showStack("Stack before pushBool");
@@ -1276,7 +1276,7 @@ void stepPush(unsigned n) {
 	showStack("Stack before push");
 	unsigned i=0;
 	for (const auto& se : nodeStack) {
-		cout << i << ": " << se << ' ' << se->to_string() << endl;
+		cerr << i << ": " << se << ' ' << se->to_string() << endl;
 		++i;
 	}
 	auto p = nodeStack.begin();
@@ -1291,16 +1291,16 @@ void stepPush(unsigned n) {
 #else
 	advance(p,n);
 	Node* node = *p;
-	cout << "Push: About to pull " << node->to_string() << " up to top " << endl;
+	cerr << "Push: About to pull " << node->to_string() << " up to top " << endl;
 	auto ap = dynamic_cast<NAp*>(node);
 	assert(ap);
 	auto arg = ap->a2;
 	nodeStack.push_front(arg);
 #endif
-	cout << "Stack after push " << endl;
+	cerr << "Stack after push " << endl;
 	i=0;
 	for (const auto& se : nodeStack) {
-		cout << i << ": " << se << ' ' << se->to_string() << endl;
+		cerr << i << ": " << se << ' ' << se->to_string() << endl;
 		++i;
 	}
 }
@@ -1327,14 +1327,14 @@ void stepUpdate(unsigned m) {
 
 	showStack("stack before update "+::to_string(m));
 	if (nodeStack.size()<(m+1)) {
-		cout << "Judgment " << nodeStack.size() << " vs " << (m+1) << " is " << (nodeStack.size()>(m+1)) << " Stack size " << nodeStack.size() << " not big enough for update " << m << endl;
+		cerr << "Judgment " << nodeStack.size() << " vs " << (m+1) << " is " << (nodeStack.size()>(m+1)) << " Stack size " << nodeStack.size() << " not big enough for update " << m << endl;
 		throw "Bad Update";
 	}
 	Node* tos = nodeStack.front(); nodeStack.pop_front();
 	showStack("stack during update "+::to_string(m));
 	auto p = nodeStack.begin();
 	advance(p, m-1);
-	//cout << "distance(gmStack.begin(),p) " << distance(nodeStack.begin(),p)
+	//cerr << "distance(gmStack.begin(),p) " << distance(nodeStack.begin(),p)
 	//	<< " gmStack.size() " << nodeStack.size() << endl;
 	//assert((unsigned)distance(gmStack.begin(),p) < gmStack.size());
 	*p = tos;//new NInd(tos);
@@ -1381,7 +1381,7 @@ struct UnwindNodeVisitor : public NodeVisitor {
 	bool done;
 	void visitNFun(NFun* gtop) {
 		if (nodeStack.size() < gtop->args) {
-			cout << __PRETTY_FUNCTION__ << ": stack " << nodeStack.size() << " not enough for " << gtop->args << " arguments" << endl;
+			cerr << __PRETTY_FUNCTION__ << ": stack " << nodeStack.size() << " not enough for " << gtop->args << " arguments" << endl;
 		}
 		//    <o, UNWIND.(), n0...nk.s,    v, G[n0=FUN f,n1...nk=AP], E[f=(k,c)], D> ;; i.e. there are k+1 stack nodes at least.
 		// => <o, c,         arg1...argk.s,v, G,                      E,          D>
@@ -1404,18 +1404,18 @@ struct UnwindNodeVisitor : public NodeVisitor {
 				Node* a = *p++;
 				NAp* c = dynamic_cast<NAp*>(a);
 				if (c == nullptr) {
-					cout << "argument should be NAp but isn't" << endl;
+					cerr << "argument should be NAp but isn't" << endl;
 					throw "Bad arg";
 				}
 				spine.push_back(c->a2);
 			}
-			cout << __PRETTY_FUNCTION__<< " Spine [";
+			cerr << __PRETTY_FUNCTION__<< " Spine [";
 			for (const auto& se : spine) {
-				cout << ' ' << se->to_string();
+				cerr << ' ' << se->to_string();
 			}
-			cout << "] " << spine.size() << " elements. We need " << gtop->args << " of these." << endl;
-			cout << __PRETTY_FUNCTION__ << " Fun " << gtop->to_string() << endl;
-			cout << __PRETTY_FUNCTION__ << " "; showStack("original stack before rearranging");
+			cerr << "] " << spine.size() << " elements. We need " << gtop->args << " of these." << endl;
+			cerr << __PRETTY_FUNCTION__ << " Fun " << gtop->to_string() << endl;
+			cerr << __PRETTY_FUNCTION__ << " "; showStack("original stack before rearranging");
 			nodeStack = concat(take(gtop->args, spine), drop(gtop->args,nodeStack));
 			showStack("Stack during fun unwind");
 
@@ -1437,8 +1437,8 @@ struct UnwindNodeVisitor : public NodeVisitor {
 		// => <o, UNWIND.(), n1.n.s, v, G[n=Ap n1,n2], E, D>
 		// That is, Take the fun graph from the Nap and push it to the node stack.
 		// Then repeat UNWIND
-		//cout << "aptop " << aptop->to_string() << endl;
-		//cout << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
+		//cerr << "aptop " << aptop->to_string() << endl;
+		//cerr << "aptop.a1 " << aptop->a1->to_string() << " aptop.a2 " << aptop->a2->to_string() << endl;
 		nodeStack.push_front(aptop->a1);
 		showStack("Stack during ap unwind");
 		//pc--; // instead of backing up, we reiterate directly.
@@ -1496,7 +1496,7 @@ void stepUnwind(ptrdiff_t& pc) {
 	UnwindNodeVisitor visitor(pc);
 	while (!visitor.done) {
 		Node* top = nodeStack.front();
-		cout << "Unwind viewing " << top->to_string() << " from top of stack of size " << nodeStack.size() << endl;
+		cerr << "Unwind viewing " << top->to_string() << " from top of stack of size " << nodeStack.size() << endl;
 		top->visit(&visitor);
 	}
 	showStack("Stack after unwind");
@@ -1783,7 +1783,7 @@ struct CompileCVisitor : public ExprVisitor {
 			}
 			return;
 		}
-		cout << __PRETTY_FUNCTION__ << " Can't find " << evar->var << " in "; pprint_env(env);
+		cerr << __PRETTY_FUNCTION__ << " Can't find " << evar->var << " in "; pprint_env(env);
 	}
 	void visitExprApp(ExprApp* eapp) {
 		/*
@@ -1814,7 +1814,7 @@ struct CompileCVisitor : public ExprVisitor {
 		code.add(Instruction(PUSHNIL));
 	}
 	void visitExprIf(ExprIf* e) {
-		cout << __PRETTY_FUNCTION__ << " Not to be handled: " << e->to_string(0) << endl;
+		cerr << __PRETTY_FUNCTION__ << " Not to be handled: " << e->to_string(0) << endl;
 	}
 	void visitExprCons(ExprCons* e) {
 		compileC(code,e->hd, env,depth);
@@ -1986,7 +1986,7 @@ struct CompileBVisitor : public ExprVisitor {
 		code.add(Instruction(ADD));
 	}
 	void visitExprSub(ExprSub* e) {
-		cout << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
+		cerr << __PRETTY_FUNCTION__ << " " << e->to_string(0) << endl;
 		compileB(code,e->left, env, depth);
 		compileB(code,e->right, env, depth);
 		code.add(Instruction(SUB));
@@ -2284,21 +2284,21 @@ int main(int argc, char** argv)
 		}
     }
     catch (int e) {
-		cout << " threw " << e << endl;
+		cerr << " threw " << e << endl;
 		return 1;
     }
     catch (const char* e) {
-		cout << " threw " << e << endl;
+		cerr << " threw " << e << endl;
 		return 1;
     }
     catch (const string& e) {
-		cout << " threw " << e << endl;
+		cerr << " threw " << e << endl;
 		return 1;
     }
     AddressMode mode;
     auto m = find_mode(env, "main", &mode);
     if (!m) {
-		cout << "main not found" << endl;
+		cerr << "main not found" << endl;
 		return 1;
     }
     ptrdiff_t pc = mode.node->address; //code.code.size();
@@ -2310,9 +2310,9 @@ int main(int argc, char** argv)
     			break;
     		}
     	}
-    	if (id.size()) cout << id << ":" << endl;
-    	if (i == pc) cout << "PC:" << endl;
-		cout << i <<": " << instructionToString(code.code[i]) << endl;
+		if (id.size()) cerr << id << ":" << endl;
+		if (i == pc) cerr << "PC:" << endl;
+		cerr << i <<": " << instructionToString(code.code[i]) << endl;
     }
     try {
 		while (code.code[pc].ins != STOP) {
@@ -2324,18 +2324,18 @@ int main(int argc, char** argv)
 					break;
 				}
 			}
-			if (id.size()) cout << id << ":" << endl;
-			cout << "S:" << nodeStack.size()<<" D:"<< dump.size()<<" PC:"<< pc <<": " << instructionToString(code.code[pc]) << endl;
+			if (id.size()) cerr << id << ":" << endl;
+			cerr << "S:" << nodeStack.size()<<" D:"<< dump.size()<<" PC:"<< pc <<": " << instructionToString(code.code[pc]) << endl;
 		}
     }
     catch (int e) {
-		cout << pc << ": " << instructionToString(code.code[pc-1]) << " threw " << e << endl;
+		cerr << pc << ": " << instructionToString(code.code[pc-1]) << " threw " << e << endl;
     }
     catch (const char* e) {
-		cout << pc-1 << ": " << instructionToString(code.code[pc-1]) << " threw " << e << endl;
+		cerr << pc-1 << ": " << instructionToString(code.code[pc-1]) << " threw " << e << endl;
     }
     catch (const string& e) {
-		cout << pc-1 << ": " << instructionToString(code.code[pc-1]) << " threw " << e << endl;
+		cerr << pc-1 << ": " << instructionToString(code.code[pc-1]) << " threw " << e << endl;
     }
 
 }
