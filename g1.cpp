@@ -1164,6 +1164,12 @@ struct CodeArray {
 	void add(const Instruction& i) {
 		code.push_back(i);
 	}
+	void add(InstructionType ins)                 { add(Instruction(ins)); }
+	void add(InstructionType ins, bool b)         { add(Instruction(ins,b)); }
+	void add(InstructionType ins, unsigned n)     { add(Instruction(ins,n)); }
+	void add(InstructionType ins, size_t n)       { add(Instruction(ins,n)); }
+	void add(InstructionType ins, ptrdiff_t dest) { add(Instruction(ins,dest)); }
+	void add(InstructionType ins, NFun* node)     { add(Instruction(ins,node)); }
 };
 struct AddressMode {
 	enum Mode { Local, Global };
@@ -1685,13 +1691,18 @@ void stepCons(const Instruction& ins) {
 	nodeStack.push_front(new NCons(hd, tl));
 	showStack("After CONS");
 }
+void stepAlloc(const Instruction& ins) {
+	cerr << __PRETTY_FUNCTION__ << " Allocating local vars " << ins.n << endl;
+	for (unsigned i=0; i<ins.n; i++) {
+		nodeStack.push_back(new NHole());
+	}
+}
 bool step(CodeArray& code, ptrdiff_t& pc) {
 	Instruction instr = code.code[pc++];
 	switch (instr.ins) {
-	/* Alloc is for let forms. It will be implemented. */
-	case ALLOC:
 	/* Label is for over-completeness. It's used in the paper but not here */
 	case LABEL: throw "Unknown instruction in step"; break;
+	case ALLOC: stepAlloc(instr); break;
 	case ADD: stepBinop(instr); break;
 	case CONS: stepCons(instr); break;
 	case DIV:
@@ -1804,7 +1815,34 @@ struct CompileCVisitor : public ExprVisitor {
 		code.add(Instruction(MKAP));
 #endif
 	}
-	void visitExprLet(ExprLet*) { throw __PRETTY_FUNCTION__; }
+	pair<Env,unsigned> compileXr(list<ExprLet::Binding>& d, const Env& env, unsigned depth) {
+		Env env2 = env;
+		unsigned a = 1;
+		for (auto binding: d) {
+			EnvItem e; e.args = 0; e.mode.mode = AddressMode::Local; e.mode.localIndex = a++;
+			env2[binding.name] = e;
+		}
+		auto m = d.size()+depth;
+		return make_pair(env2,m);
+	}
+	void compileCletrec(list<ExprLet::Binding>& d, const Env& env, unsigned n, unsigned m) {
+		code.add(ALLOC,m); // Allocate holes for every binding.
+		auto u = m;
+		for (auto binding: d) {
+			compileC(code,binding.value, env, n+m); // not quite
+			code.add(UPDATE,u);
+			u--;
+		}
+	}
+	void visitExprLet(ExprLet* e) {
+		auto d=e->bindings;
+		auto rpdepthp = compileXr(d, env, depth);
+		//code.add(STOP);
+		compileCletrec(d, rpdepthp.first, depth,rpdepthp.second);
+		compileE(code,e->value,rpdepthp.first, rpdepthp.second);
+		code.add(SLIDE, rpdepthp.second-depth);
+		throw __PRETTY_FUNCTION__;
+	}
 	void visitExprBool(ExprBool* e) {
 		code.add(Instruction(PUSHBOOL,e->value));
 	}
@@ -2071,7 +2109,16 @@ struct CompileEVisitor : public ExprVisitor {
 		compileC(code,eapp,env,depth);
 		code.add(Instruction(EVAL));
 	}
-	void visitExprLet(ExprLet*) { throw __PRETTY_FUNCTION__; }
+	void visitExprLet(ExprLet* e) {
+		auto d=e->bindings;
+		//code.add(STOP);
+		CompileCVisitor innerc(code,env,depth);
+		auto rpdepthp = innerc.compileXr(d, env, depth);
+		innerc.compileCletrec(d, rpdepthp.first, depth,rpdepthp.second);
+		compileE(code,e->value,rpdepthp.first, rpdepthp.second);
+		code.add(SLIDE, rpdepthp.second-depth);
+		//throw __PRETTY_FUNCTION__;
+	}
 	void visitExprBool(ExprBool* e) {
 		code.add(Instruction(PUSHBOOL,e->value));
 	}
