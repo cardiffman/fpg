@@ -1455,12 +1455,12 @@ struct PrintNodeVisitor : public NodeVisitor {
 	PrintNodeVisitor() : done(false) {}
 	bool done;
 	void visitNInt(NInt* n) {
-		cout << n->to_string();
+		cout << n->i;//n->to_string();
 		nodeStack.pop_front();
 		done = true;
 	}
 	void visitNBool(NBool* n) {
-		cout << n->to_string();
+		cout << (n->b?"true":"false");//n->to_string();
 		nodeStack.pop_front();
 		done = true;
 	}
@@ -1479,7 +1479,7 @@ struct PrintNodeVisitor : public NodeVisitor {
 #endif
 		//throw "don't print Cons yet";
 	}
-	void visitNNil(NNil* n) { cout << n->to_string(); nodeStack.pop_front(); done=true;}
+	void visitNNil(NNil*) { /*cerr << n->to_string();*/ nodeStack.pop_front(); done=true;}
 	void visitNFun(NFun*) {
 		throw "Don't print a fun";
 	}
