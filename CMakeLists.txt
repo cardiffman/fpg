@@ -25,11 +25,17 @@ use_cxx14()
 
 add_compile_options(-Wall -Wextra)
 
+add_library(token Token.cpp)
+add_library(expr Expr.cpp)
+
 add_executable(fpstg fpstg.cpp)
+target_link_libraries(fpstg token expr)
 
 add_executable(g0 g0.cpp)
+target_link_libraries(g0 token expr)
 
 add_executable(g1 g1.cpp)
+target_link_libraries(g1 token expr)
 
 enable_testing()
 if (original)

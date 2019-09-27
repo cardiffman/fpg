@@ -14,8 +14,13 @@
 #include <algorithm>
 #include <stddef.h> // official home of ptrdiff_t
 #include <assert.h>
+#include "Token.h"
+#include "Expr.h"
+#include "util.h"
+
 using namespace std;
 
+#ifndef UTIL_H_
 template <typename T, typename UnaryOp, typename T2=std::string, typename C2=std::list<T2>>
 C2 mapf(const T b, const T e, UnaryOp f)
 {
@@ -56,6 +61,7 @@ string join(const list<string>& strs, int joint) {
 	}
 	return r;
 }
+#endif
 #ifdef EXPR_TAGS
 enum ExprType {
     EXPR_VAR,
@@ -85,6 +91,7 @@ enum ExprType {
 };
 #endif
 
+#ifndef EXPR_H_
 extern string indent(int col);
 struct ExprVar;
 struct ExprNum;
@@ -357,12 +364,15 @@ struct ExprLet : public Expr {
 	list<Binding> bindings;
 	Expr* value;
 };
+#endif
+
 struct Definition {
     string name;
     list<string> args;
     Expr* body;
 };
 
+#ifndef TOKEN_H_
 enum Token {
 	T_NAME,
 	T_NUM,
@@ -536,9 +546,11 @@ string token_to_string(const tkn& token) {
 	}
 	return rv;
 }
+#endif
 Expr *parse_expr();
 
 void pprint_expr(int col, const Expr *e);
+#ifndef EXPR_H_
 Expr* mkleaf(tkn t) {
 	switch (t.type) {
 	case T_STR: return new ExprStr(t.s);
@@ -735,6 +747,8 @@ Expr* parse_expr() {
 	}
 	 return E(0);
 }
+#endif
+#if 0
 list<ExprLet::Binding> parse_let_exprs()
 {
 	list<ExprLet::Binding> bindings;
@@ -758,12 +772,19 @@ list<ExprLet::Binding> parse_let_exprs()
 	next();
 	return bindings;
 }
+#else
+list<ExprLet::Binding> parse_let_exprs();
+#endif
+#if 0
 Expr* parse_let() {
 	auto letx = new ExprLet();
 	letx->bindings = parse_let_exprs();
 	letx->value = parse_expr();
 	return letx;
 }
+#else
+Expr* parse_let();
+#endif
 list<string> parse_names(void) {
 	list<string> names;
 	while (token.type == T_NAME) {
@@ -808,26 +829,13 @@ list<Definition> parse_defs()
 	return defs;
 }
 
-string indent(int col)
-{
-	return string(col,' ');
-}
-
+#if 0
 void pprint_expr(int col, const Expr *e)
 {
 	cout << e->to_string(col) << endl;
 }
+#endif
 
-template <typename C> string join(const C& ner, int joint) {
-	string rv;
-	auto i = ner.begin();
-	rv += *i++;
-	while (i != ner.end()) {
-		rv += joint;
-		rv += *i++;
-	}
-	return rv;
-}
 void pprint_def(int col, const Definition& def)
 {
 	cout << def.name;
@@ -1048,7 +1056,7 @@ struct AddressMode{
 	AddressModeMode mode;
 	union {
 		ptrdiff_t address;
-		CodeArray* code;
+		//CodeArray* code;
 		unsigned arg;
 	} params;
 };
@@ -1074,6 +1082,7 @@ string instructionToString(Instruction* ins) {
 	case POP:
 	case SLIDE:
 	case UPDATE: rv += " " + ::to_string(ins->n); break;
+	default: break;
 	}
 	return rv;
 }
@@ -1165,9 +1174,6 @@ unsigned countLocalsExp(const Expr* exp)
 		return 0;
 	auto var = dynamic_cast<const ExprVar*>(exp);
 	if (var)
-		return 0;
-	auto oper = dynamic_cast<const ExprOper*>(exp);
-	if (oper)
 		return 0;
 	auto str = dynamic_cast<const ExprStr*>(exp);
 	if (str)
@@ -1395,7 +1401,6 @@ struct ESchemeVisitor : public ExprVisitor {
 	virtual void visitExprHd(ExprHd*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprTl(ExprTl*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprNull(ExprNull*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
-	virtual void visitExprOper(ExprOper*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprLet(ExprLet* e) {
 		cScheme(code, e->bindings.front().value, r, n);
 		eScheme(code, e->value, r/*modify FIXME*/, n+1);
@@ -1443,6 +1448,7 @@ struct ESchemeVisitor : public ExprVisitor {
 		code.add(MkintInstruction());
 	}
 	virtual void visitExprNeg(ExprNeg*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
+	virtual void visitExprNot(ExprNot*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	CodeArray& code;
 	const Env& r;
 	int& n;
@@ -1471,7 +1477,6 @@ struct BSchemeVisitor : public ExprVisitor {
 	virtual void visitExprHd(ExprHd*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprTl(ExprTl*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprNull(ExprNull*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
-	virtual void visitExprOper(ExprOper*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprLet(ExprLet* e) {
 		cScheme(code, e->bindings.front().value, r, n);
 		bScheme(code, e->value, r/*modify FIXME*/, n+1);
@@ -1499,6 +1504,7 @@ struct BSchemeVisitor : public ExprVisitor {
 	virtual void visitExprLe(ExprLe*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprGe(ExprGe*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprNeg(ExprNeg*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
+	virtual void visitExprNot(ExprNot*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	CodeArray& code;
 	const Env& r;
 	int& n;
@@ -1568,7 +1574,6 @@ struct RSchemeVisitor : public ExprVisitor {
 	virtual void visitExprHd(ExprHd*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprTl(ExprTl*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprNull(ExprNull*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
-	virtual void visitExprOper(ExprOper*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprLet(ExprLet* e) {
 		cScheme(code, e->bindings.front().value, r, n);
 		rScheme(code, e->value, r/*modify FIXME*/, n+1);
@@ -1585,6 +1590,7 @@ struct RSchemeVisitor : public ExprVisitor {
 	virtual void visitExprLe(ExprLe*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprGe(ExprGe*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprNeg(ExprNeg*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
+	virtual void visitExprNot(ExprNot*) {cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	CodeArray& code;
 	const Env& r;
 	int& n;
@@ -1637,7 +1643,7 @@ struct CSchemeVisitor : public ExprVisitor {
 	virtual void visitExprHd(ExprHd*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprTl(ExprTl*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprNull(ExprNull*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
-	virtual void visitExprOper(ExprOper*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
+	virtual void visitExprNot(ExprNot*) { cout << __PRETTY_FUNCTION__ << " to come" << endl; }
 	virtual void visitExprLet(ExprLet* e) {
 		cScheme(code, e->bindings.front().value, r, n);
 		cScheme(code, e->value, r/*modify FIXME*/, n+1);
@@ -1776,7 +1782,6 @@ struct Atomicness : public ExprVisitor {
 	void visitExprHd(ExprHd* e) { (void)e; r=false; }
 	void visitExprTl(ExprTl* e) { (void)e; r=false; }
 	void visitExprNull(ExprNull* e) { (void)e; r=false; }
-	void visitExprOper(ExprOper* e) { (void)e; r=false; }
 	void visitExprLet(ExprLet* e) { (void)e; }
 	void visitExprAdd(ExprAdd* e) { (void)e; r=false; }
 	void visitExprSub(ExprSub* e) { (void)e; r=false; }
@@ -1790,6 +1795,7 @@ struct Atomicness : public ExprVisitor {
 	void visitExprLe(ExprLe* e) { (void)e; r=false; }
 	void visitExprGe(ExprGe* e) { (void)e; r=false; }
 	void visitExprNeg(ExprNeg* e) { (void)e; r=false; }
+	void visitExprNot(ExprNot* e) { (void)e; r=false; }
 	bool r;
 };
 bool atomicExpr(Expr* e){
@@ -1844,7 +1850,7 @@ struct LoweringVisitor : public ExprVisitor {
 	void visitExprHd(ExprHd* e) {(void)e;}
 	void visitExprTl(ExprTl* e) {(void)e;}
 	void visitExprNull(ExprNull* e) {(void)e;}
-	void visitExprOper(ExprOper* e) {(void)e;}
+	void visitExprNot(ExprNot* e) { (void)e; }
 	void visitExprLet(ExprLet* e) {
 		cout << __PRETTY_FUNCTION__ << " Checking " << e->to_string(0) << " for lowering needs" << endl;
 		for (auto binding : e->bindings) {
