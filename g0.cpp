@@ -39,12 +39,6 @@ Expr *parse_expr();
 void pprint_expr(int col, const Expr *e);
 Expr* parse_let();
 Expr* E(int);
-Expr* parse_expr() {
-	if (token.type == T_LET) {
-		return parse_let();
-	}
-	 return E(0);
-}
 list<string> parse_names(void) {
 	list<string> names;
 	while (token.type == T_NAME) {

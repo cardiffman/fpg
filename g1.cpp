@@ -43,13 +43,8 @@ list<string> parse_names(void) {
 	return names;
 }
 Expr* parse_let();
+Expr *parse_expr();
 Expr* E(int);
-Expr* parse_expr() {
-	if (token.type == T_LET) {
-		return parse_let();
-	}
-	 return E(0);
-}
 Definition parse_def(void) {
 	Definition r;
 

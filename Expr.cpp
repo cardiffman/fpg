@@ -315,6 +315,13 @@ list<ExprLet::Binding> parse_let_exprs()
 	next();
 	return bindings;
 }
+Expr* parse_let();
+Expr* parse_expr() {
+	if (token.type == T_LET) {
+		return parse_let();
+	}
+	 return E(0);
+}
 Expr* parse_let() {
 	auto letx = new ExprLet();
 	letx->bindings = parse_let_exprs();
